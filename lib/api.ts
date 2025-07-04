@@ -31,7 +31,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
 
       const response = await fetch(url, {
         ...defaultOptions,
@@ -58,7 +58,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
       }
 
       if (error instanceof Error && error.name === "AbortError") {
-        throw new ApiError("Request timeout - server may be unavailable")
+        throw new ApiError("Request timeout - FastAPI backend may be unavailable")
       }
 
       // Network error - retry if not the last attempt
@@ -69,7 +69,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     }
   }
 
-  throw new ApiError("Network error or server unavailable", 0, lastError)
+  throw new ApiError("Network error - FastAPI backend unavailable", 0, lastError)
 }
 
 // API functions for different endpoints
@@ -106,206 +106,5 @@ export const api = {
   // Health check
   healthCheck: async () => {
     return apiRequest("/health")
-  },
-}
-
-// Add more comprehensive mock data for better visualization testing
-export const mockData = {
-  species: [
-    {
-      id: "2684876",
-      scientificName: "Pinus sylvestris",
-      vernacularName: "Scots Pine",
-      kingdom: "Plantae",
-      phylum: "Tracheophyta",
-      class: "Pinopsida",
-      order: "Pinales",
-      family: "Pinaceae",
-      genus: "Pinus",
-    },
-    {
-      id: "5219404",
-      scientificName: "Cervus elaphus",
-      vernacularName: "Red Deer",
-      kingdom: "Animalia",
-      phylum: "Chordata",
-      class: "Mammalia",
-      order: "Artiodactyla",
-      family: "Cervidae",
-      genus: "Cervus",
-    },
-    {
-      id: "2878688",
-      scientificName: "Quercus robur",
-      vernacularName: "English Oak",
-      kingdom: "Plantae",
-      phylum: "Tracheophyta",
-      class: "Magnoliopsida",
-      order: "Fagales",
-      family: "Fagaceae",
-      genus: "Quercus",
-    },
-    {
-      id: "5284517",
-      scientificName: "Lynx lynx",
-      vernacularName: "Eurasian Lynx",
-      kingdom: "Animalia",
-      phylum: "Chordata",
-      class: "Mammalia",
-      order: "Carnivora",
-      family: "Felidae",
-      genus: "Lynx",
-    },
-    {
-      id: "2882316",
-      scientificName: "Fagus sylvatica",
-      vernacularName: "European Beech",
-      kingdom: "Plantae",
-      phylum: "Tracheophyta",
-      class: "Magnoliopsida",
-      order: "Fagales",
-      family: "Fagaceae",
-      genus: "Fagus",
-    },
-    {
-      id: "2480946",
-      scientificName: "Aquila chrysaetos",
-      vernacularName: "Golden Eagle",
-      kingdom: "Animalia",
-      phylum: "Chordata",
-      class: "Aves",
-      order: "Accipitriformes",
-      family: "Accipitridae",
-      genus: "Aquila",
-    },
-  ],
-
-  observations: [
-    // Pinus sylvestris observations
-    {
-      id: "2684876_obs_1",
-      speciesId: "2684876",
-      eventDate: "2023-06-15",
-      decimalLatitude: 52.2297,
-      decimalLongitude: 21.0122,
-      locality: "Warsaw, Mazowieckie, Poland",
-      recordedBy: "Forest Survey Team",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "2684876_obs_2",
-      speciesId: "2684876",
-      eventDate: "2023-07-20",
-      decimalLatitude: 50.0647,
-      decimalLongitude: 19.945,
-      locality: "Kraków, Małopolskie, Poland",
-      recordedBy: "Botanical Survey",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "2684876_obs_3",
-      speciesId: "2684876",
-      eventDate: "2022-08-10",
-      decimalLatitude: 53.4285,
-      decimalLongitude: 14.5528,
-      locality: "Szczecin, Zachodniopomorskie, Poland",
-      recordedBy: "Nature Guide",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "2684876_obs_4",
-      speciesId: "2684876",
-      eventDate: "2022-05-12",
-      decimalLatitude: 49.2992,
-      decimalLongitude: 19.9496,
-      locality: "Zakopane, Małopolskie, Poland",
-      recordedBy: "Mountain Researcher",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "2684876_obs_5",
-      speciesId: "2684876",
-      eventDate: "2021-09-03",
-      decimalLatitude: 51.7592,
-      decimalLongitude: 19.456,
-      locality: "Łódź, Łódzkie, Poland",
-      recordedBy: "Urban Forester",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "2684876_obs_6",
-      speciesId: "2684876",
-      eventDate: "2021-04-18",
-      decimalLatitude: 54.352,
-      decimalLongitude: 18.6466,
-      locality: "Gdańsk, Pomorskie, Poland",
-      recordedBy: "Coastal Survey",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    // Cervus elaphus observations
-    {
-      id: "5219404_obs_1",
-      speciesId: "5219404",
-      eventDate: "2023-05-12",
-      decimalLatitude: 49.2992,
-      decimalLongitude: 19.9496,
-      locality: "Zakopane, Małopolskie, Poland",
-      recordedBy: "Wildlife Researcher",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "5219404_obs_2",
-      speciesId: "5219404",
-      eventDate: "2023-09-03",
-      decimalLatitude: 51.7592,
-      decimalLongitude: 19.456,
-      locality: "Łódź Forest, Łódzkie, Poland",
-      recordedBy: "Nature Guide",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-    {
-      id: "5219404_obs_3",
-      speciesId: "5219404",
-      eventDate: "2022-10-15",
-      decimalLatitude: 50.8503,
-      decimalLongitude: 20.6531,
-      locality: "Świętokrzyskie Mountains, Poland",
-      recordedBy: "Wildlife Camera",
-      institutionCode: "DEMO",
-      basisOfRecord: "MACHINE_OBSERVATION",
-    },
-    {
-      id: "5219404_obs_4",
-      speciesId: "5219404",
-      eventDate: "2022-06-22",
-      decimalLatitude: 53.1325,
-      decimalLongitude: 23.1688,
-      locality: "Białowieża Forest, Podlaskie, Poland",
-      recordedBy: "Park Ranger",
-      institutionCode: "DEMO",
-      basisOfRecord: "HUMAN_OBSERVATION",
-    },
-  ],
-
-  stats: {
-    totalSpecies: 28547,
-    totalObservations: 1247832,
-    kingdoms: 6,
-    topKingdoms: [
-      { name: "Plantae", count: 15234 },
-      { name: "Animalia", count: 12543 },
-      { name: "Fungi", count: 567 },
-      { name: "Bacteria", count: 203 },
-    ],
-    lastUpdated: new Date().toISOString(),
-    dataSource: "Demo Data - GBIF Structure",
   },
 }

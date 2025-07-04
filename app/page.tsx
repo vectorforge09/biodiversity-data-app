@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Search, MapPin, BarChart3, Leaf, AlertCircle, Globe, Calendar } from "lucide-react"
+import { Search, MapPin, BarChart3, Leaf, AlertCircle, Globe, Calendar, Wifi, WifiOff } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,7 +12,7 @@ import { SpeciesMap } from "@/components/species-map"
 import { ObservationTimeline } from "@/components/observation-timeline"
 import { ApiStatus } from "@/components/api-status"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { useSpeciesSearch, useSpeciesObservations, useBiodiversityStats } from "@/hooks/use-api"
+import { useSpeciesSearch, useSpeciesObservations, useBiodiversityStats, useApiHealth } from "@/hooks/use-api"
 import type { Species } from "@/types/biodiversity"
 
 export default function BiodiversityDashboard() {
@@ -21,21 +21,14 @@ export default function BiodiversityDashboard() {
   const [showResults, setShowResults] = useState(false)
 
   // API hooks - all connected to FastAPI backend
-  const {
-    data: searchResults,
-    loading: searchLoading,
-    isUsingMockData: searchUsingMock,
-  } = useSpeciesSearch(searchQuery)
-
+  const { data: searchResults, loading: searchLoading, error: searchError } = useSpeciesSearch(searchQuery)
   const {
     data: observations,
     loading: observationsLoading,
-    isUsingMockData: obsUsingMock,
+    error: observationsError,
   } = useSpeciesObservations(selectedSpecies?.id || null)
-
-  const { data: stats, loading: statsLoading, isUsingMockData: statsUsingMock } = useBiodiversityStats()
-
-  const isUsingMockData = searchUsingMock || obsUsingMock || statsUsingMock
+  const { data: stats, loading: statsLoading, error: statsError } = useBiodiversityStats()
+  const { isOnline } = useApiHealth()
 
   // Handle search input with debouncing
   const handleSearch = (value: string) => {
@@ -60,6 +53,56 @@ export default function BiodiversityDashboard() {
     setShowResults(false)
   }
 
+  // Show backend offline message when API is not available
+  if (isOnline === false) {
+    return (
+      <ErrorBoundary>
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+          <Card className="max-w-2xl w-full">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 p-4 bg-red-100 rounded-full w-fit">
+                <WifiOff className="h-8 w-8 text-red-600" />
+              </div>
+              <CardTitle className="text-2xl text-red-900">Backend Unavailable</CardTitle>
+              <CardDescription className="text-lg">
+                Cannot connect to the FastAPI backend that provides GBIF data access.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Alert className="bg-red-50 border-red-200">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  <strong>Required:</strong> Start the FastAPI backend server to access GBIF biodiversity data.
+                </AlertDescription>
+              </Alert>
+
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <h3 className="font-semibold mb-2">To start the backend:</h3>
+                <code className="block bg-gray-800 text-green-400 p-3 rounded text-sm">
+                  cd backend
+                  <br />
+                  uvicorn main:app --reload --port 8000
+                </code>
+              </div>
+
+              <div className="text-center">
+                <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+                  <Wifi className="h-4 w-4 mr-2" />
+                  Check Connection Again
+                </Button>
+              </div>
+
+              <div className="text-sm text-gray-600 text-center">
+                <p>Expected backend URL: {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}</p>
+                <p>This application requires real-time access to GBIF data through the FastAPI backend.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </ErrorBoundary>
+    )
+  }
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-emerald-50">
@@ -73,26 +116,13 @@ export default function BiodiversityDashboard() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Poland Biodiversity Explorer</h1>
-                  <p className="text-sm text-gray-600">Visualizing species observations from GBIF data</p>
+                  <p className="text-sm text-gray-600">Real-time GBIF data visualization</p>
                 </div>
               </div>
               <ApiStatus />
             </div>
           </div>
         </header>
-
-        {/* Demo Mode Alert */}
-        {isUsingMockData && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-            <Alert className="bg-amber-50 border-amber-200">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800">
-                <strong>Demo Mode:</strong> FastAPI backend unavailable. Using sample data. Start backend:{" "}
-                <code className="bg-amber-100 px-1 rounded text-xs">uvicorn main:app --reload --port 8000</code>
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Search Section */}
@@ -136,6 +166,12 @@ export default function BiodiversityDashboard() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    ) : searchError ? (
+                      <div className="p-6 text-center text-red-500">
+                        <AlertCircle className="h-12 w-12 mx-auto mb-3" />
+                        <p className="text-lg font-medium">Search Error</p>
+                        <p className="text-sm">{searchError}</p>
                       </div>
                     ) : searchResults?.results && searchResults.results.length > 0 ? (
                       <div className="max-h-96 overflow-y-auto">
@@ -237,6 +273,8 @@ export default function BiodiversityDashboard() {
                     <div className="text-2xl font-bold text-green-600">
                       {observationsLoading ? (
                         <Skeleton className="h-8 w-16" />
+                      ) : observationsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
                       ) : (
                         observations?.total?.toLocaleString() || "0"
                       )}
@@ -254,6 +292,8 @@ export default function BiodiversityDashboard() {
                     <div className="text-2xl font-bold text-blue-600">
                       {observationsLoading ? (
                         <Skeleton className="h-8 w-16" />
+                      ) : observationsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
                       ) : (
                         observations?.gbifTotal?.toLocaleString() || "0"
                       )}
@@ -269,7 +309,13 @@ export default function BiodiversityDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-purple-600">
-                      {observationsLoading ? <Skeleton className="h-8 w-16" /> : `${observations?.queryTimeMs || 0}ms`}
+                      {observationsLoading ? (
+                        <Skeleton className="h-8 w-16" />
+                      ) : observationsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
+                      ) : (
+                        `${observations?.queryTimeMs || 0}ms`
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">Response time</p>
                   </CardContent>
@@ -298,7 +344,15 @@ export default function BiodiversityDashboard() {
                         <div className="text-center space-y-3">
                           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
                           <div className="text-lg font-medium text-gray-600">Loading distribution map...</div>
-                          <div className="text-sm text-gray-500">Fetching observation coordinates</div>
+                          <div className="text-sm text-gray-500">Fetching observation coordinates from GBIF</div>
+                        </div>
+                      </div>
+                    ) : observationsError ? (
+                      <div className="h-96 bg-red-50 rounded-lg flex items-center justify-center">
+                        <div className="text-center space-y-3">
+                          <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+                          <div className="text-lg font-medium text-red-700">Failed to load observations</div>
+                          <div className="text-sm text-red-600">{observationsError}</div>
                         </div>
                       </div>
                     ) : (
@@ -325,7 +379,15 @@ export default function BiodiversityDashboard() {
                         <div className="text-center space-y-3">
                           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                           <div className="text-lg font-medium text-gray-600">Loading timeline data...</div>
-                          <div className="text-sm text-gray-500">Processing observation dates</div>
+                          <div className="text-sm text-gray-500">Processing observation dates from GBIF</div>
+                        </div>
+                      </div>
+                    ) : observationsError ? (
+                      <div className="h-96 bg-red-50 rounded-lg flex items-center justify-center">
+                        <div className="text-center space-y-3">
+                          <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+                          <div className="text-lg font-medium text-red-700">Failed to load timeline</div>
+                          <div className="text-sm text-red-600">{observationsError}</div>
                         </div>
                       </div>
                     ) : (
@@ -346,8 +408,8 @@ export default function BiodiversityDashboard() {
                   </div>
                   <CardTitle className="text-4xl mb-4">Explore Poland's Biodiversity</CardTitle>
                   <CardDescription className="text-xl text-green-100 max-w-2xl mx-auto">
-                    Discover and visualize species observations from the Global Biodiversity Information Facility
-                    (GBIF). Search for any species to see where and when it has been observed across Poland.
+                    Real-time species observations from the Global Biodiversity Information Facility (GBIF). Search for
+                    any species to see where and when it has been observed across Poland.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -361,7 +423,13 @@ export default function BiodiversityDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-green-600">
-                      {statsLoading ? <Skeleton className="h-8 w-20" /> : stats?.totalSpecies?.toLocaleString() || "0"}
+                      {statsLoading ? (
+                        <Skeleton className="h-8 w-20" />
+                      ) : statsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
+                      ) : (
+                        stats?.totalSpecies?.toLocaleString() || "0"
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">Unique species in Poland</p>
                   </CardContent>
@@ -376,6 +444,8 @@ export default function BiodiversityDashboard() {
                     <div className="text-3xl font-bold text-blue-600">
                       {statsLoading ? (
                         <Skeleton className="h-8 w-20" />
+                      ) : statsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
                       ) : (
                         stats?.totalObservations?.toLocaleString() || "0"
                       )}
@@ -391,7 +461,13 @@ export default function BiodiversityDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-purple-600">
-                      {statsLoading ? <Skeleton className="h-8 w-12" /> : stats?.kingdoms || "0"}
+                      {statsLoading ? (
+                        <Skeleton className="h-8 w-12" />
+                      ) : statsError ? (
+                        <span className="text-red-500 text-sm">Error</span>
+                      ) : (
+                        stats?.kingdoms || "0"
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">Major life groups</p>
                   </CardContent>
@@ -414,7 +490,7 @@ export default function BiodiversityDashboard() {
                 <CardHeader>
                   <CardTitle className="text-2xl">Featured Polish Species</CardTitle>
                   <CardDescription className="text-base">
-                    Click on any species below to explore its distribution and observation timeline
+                    Click on any species below to explore its real-time GBIF distribution and observation timeline
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -482,12 +558,12 @@ export default function BiodiversityDashboard() {
               </Card>
 
               {/* Biodiversity by Kingdom */}
-              {stats?.topKingdoms && (
+              {stats?.topKingdoms && !statsError && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-2xl">Biodiversity Overview</CardTitle>
                     <CardDescription className="text-base">
-                      Distribution of recorded species across major taxonomic kingdoms in Poland
+                      Live distribution of recorded species across major taxonomic kingdoms in Poland (from GBIF)
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -547,8 +623,8 @@ export default function BiodiversityDashboard() {
                       </div>
                       <h3 className="font-bold text-lg text-blue-900 mb-2">1. Search Species</h3>
                       <p className="text-blue-700">
-                        Use the search bar to find species by scientific name (e.g., "Pinus sylvestris") or common name
-                        (e.g., "Scots Pine")
+                        Search by scientific name (e.g., "Pinus sylvestris") or common name (e.g., "Scots Pine") to find
+                        real GBIF data
                       </p>
                     </div>
                     <div className="text-center">
@@ -557,7 +633,7 @@ export default function BiodiversityDashboard() {
                       </div>
                       <h3 className="font-bold text-lg text-blue-900 mb-2">2. View Distribution</h3>
                       <p className="text-blue-700">
-                        See where the species has been observed across Poland with interactive geographic visualization
+                        See live GBIF observation locations across Poland with interactive geographic visualization
                       </p>
                     </div>
                     <div className="text-center">
@@ -566,7 +642,7 @@ export default function BiodiversityDashboard() {
                       </div>
                       <h3 className="font-bold text-lg text-blue-900 mb-2">3. Analyze Timeline</h3>
                       <p className="text-blue-700">
-                        Explore when observations were recorded to understand seasonal patterns and research activity
+                        Explore real observation dates from GBIF to understand seasonal patterns and research activity
                       </p>
                     </div>
                   </div>

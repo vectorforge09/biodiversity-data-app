@@ -15,24 +15,24 @@ export function ApiStatus() {
         icon: <RefreshCw className="h-3 w-3 animate-spin" />,
         text: "Checking...",
         variant: "secondary" as const,
-        description: "Checking FastAPI backend status...",
+        description: "Checking FastAPI backend connection to GBIF...",
       }
     }
 
     if (isOnline) {
       return {
         icon: <CheckCircle className="h-3 w-3" />,
-        text: "FastAPI Online",
+        text: "GBIF Connected",
         variant: "default" as const,
-        description: `Connected to FastAPI backend. Last checked: ${lastChecked?.toLocaleTimeString()}`,
+        description: `FastAPI backend connected to GBIF API. Last checked: ${lastChecked?.toLocaleTimeString()}`,
       }
     }
 
     return {
       icon: <XCircle className="h-3 w-3" />,
-      text: "Using Mock Data",
+      text: "Backend Offline",
       variant: "destructive" as const,
-      description: `FastAPI backend unavailable. Using demo data. Last checked: ${lastChecked?.toLocaleTimeString()}`,
+      description: `FastAPI backend unavailable. Cannot fetch GBIF data. Last checked: ${lastChecked?.toLocaleTimeString()}`,
     }
   }
 

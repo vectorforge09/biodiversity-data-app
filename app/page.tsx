@@ -202,12 +202,18 @@ export default function BiodiversityExplorer() {
                     </CardTitle>
                     <CardDescription>
                       Observation locations in Poland
-                      {observations && ` (${observations.total} records)`}
+                      {observations && observations.total > 0 && ` (${observations.total} records)`}
+                      {observationsLoading && " (Loading...)"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {observationsLoading ? (
-                      <Skeleton className="h-96 w-full" />
+                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
+                        <div className="text-center space-y-2">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                          <div className="text-sm text-gray-600">Loading observations...</div>
+                        </div>
+                      </div>
                     ) : (
                       <SpeciesMap observations={observations?.observations || []} />
                     )}
@@ -221,11 +227,19 @@ export default function BiodiversityExplorer() {
                       <BarChart3 className="h-5 w-5" />
                       Observation Timeline
                     </CardTitle>
-                    <CardDescription>Frequency of observations over time</CardDescription>
+                    <CardDescription>
+                      Frequency of observations over time
+                      {observationsLoading && " (Loading...)"}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {observationsLoading ? (
-                      <Skeleton className="h-96 w-full" />
+                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
+                        <div className="text-center space-y-2">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                          <div className="text-sm text-gray-600">Loading timeline data...</div>
+                        </div>
+                      </div>
                     ) : (
                       <ObservationTimeline observations={observations?.observations || []} />
                     )}

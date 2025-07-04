@@ -127,7 +127,7 @@ export default function BiodiversityExplorer() {
                             className="w-full p-4 text-left hover:bg-gray-50 border-b last:border-b-0 transition-colors"
                           >
                             <div className="flex items-center justify-between">
-                              <div>
+                              <div className="flex-1">
                                 <h3 className="font-semibold text-gray-900">{species.scientificName}</h3>
                                 {species.vernacularName && (
                                   <p className="text-sm text-gray-600">{species.vernacularName}</p>
@@ -141,16 +141,28 @@ export default function BiodiversityExplorer() {
                                       {species.family}
                                     </Badge>
                                   )}
+                                  {species.genus && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {species.genus}
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
-                              <MapPin className="h-5 w-5 text-gray-400" />
+                              <MapPin className="h-5 w-5 text-gray-400 ml-2" />
                             </div>
                           </button>
                         ))}
                       </div>
-                    ) : (
-                      <div className="p-4 text-center text-gray-500">No species found for "{searchQuery}"</div>
-                    )}
+                    ) : searchQuery.length >= 2 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        <div className="space-y-2">
+                          <div>No species found for "{searchQuery}"</div>
+                          <div className="text-xs text-gray-400">
+                            Try searching by scientific name (e.g., "Pinus sylvestris") or common name (e.g., "Pine")
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
               </div>
@@ -201,17 +213,20 @@ export default function BiodiversityExplorer() {
                       Geographic Distribution
                     </CardTitle>
                     <CardDescription>
-                      Observation locations in Poland
-                      {observations && observations.total > 0 && ` (${observations.total} records)`}
-                      {observationsLoading && " (Loading...)"}
+                      {observationsLoading
+                        ? "Loading observation locations..."
+                        : observations && observations.total > 0
+                          ? `${observations.total} observations in Poland (showing ${observations.observations?.length || 0})`
+                          : "Observation locations in Poland"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {observationsLoading ? (
-                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-                        <div className="text-center space-y-2">
+                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center border">
+                        <div className="text-center space-y-3">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                          <div className="text-sm text-gray-600">Loading observations...</div>
+                          <div className="text-sm text-gray-600">Loading observations from GBIF...</div>
+                          <div className="text-xs text-gray-400">This may take a few seconds</div>
                         </div>
                       </div>
                     ) : (
@@ -228,16 +243,18 @@ export default function BiodiversityExplorer() {
                       Observation Timeline
                     </CardTitle>
                     <CardDescription>
-                      Frequency of observations over time
-                      {observationsLoading && " (Loading...)"}
+                      {observationsLoading
+                        ? "Loading temporal data..."
+                        : "Frequency of observations over time and seasonal patterns"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {observationsLoading ? (
-                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-                        <div className="text-center space-y-2">
+                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center border">
+                        <div className="text-center space-y-3">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                          <div className="text-sm text-gray-600">Loading timeline data...</div>
+                          <div className="text-sm text-gray-600">Processing temporal data...</div>
+                          <div className="text-xs text-gray-400">Analyzing observation patterns</div>
                         </div>
                       </div>
                     ) : (

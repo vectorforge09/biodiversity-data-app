@@ -79,101 +79,15 @@ export function useSpeciesSearch(query: string, limit = 10) {
   )
 }
 
-// Update the useSpeciesObservations hook to handle fallback data properly
+// Hook for species observations
 export function useSpeciesObservations(speciesId: string | null, limit = 300) {
-  const [fallbackData, setFallbackData] = useState<any>(null)
-
-  // Generate fallback observations for the selected species
-  useEffect(() => {
-    if (speciesId) {
-      const speciesObservations = mockData.observations.filter((obs) => obs.speciesId === speciesId)
-
-      // If no mock data for this species, generate some sample data
-      if (speciesObservations.length === 0) {
-        const sampleObservations = [
-          {
-            id: `${speciesId}_obs_1`,
-            speciesId: speciesId,
-            eventDate: "2023-06-15",
-            decimalLatitude: 52.2297,
-            decimalLongitude: 21.0122,
-            locality: "Warsaw, Mazowieckie, Poland",
-            recordedBy: "Demo Observer",
-            institutionCode: "DEMO",
-            basisOfRecord: "HUMAN_OBSERVATION",
-          },
-          {
-            id: `${speciesId}_obs_2`,
-            speciesId: speciesId,
-            eventDate: "2023-07-20",
-            decimalLatitude: 50.0647,
-            decimalLongitude: 19.945,
-            locality: "Kraków, Małopolskie, Poland",
-            recordedBy: "Demo Observer",
-            institutionCode: "DEMO",
-            basisOfRecord: "HUMAN_OBSERVATION",
-          },
-          {
-            id: `${speciesId}_obs_3`,
-            speciesId: speciesId,
-            eventDate: "2022-08-10",
-            decimalLatitude: 53.4285,
-            decimalLongitude: 14.5528,
-            locality: "Szczecin, Zachodniopomorskie, Poland",
-            recordedBy: "Demo Observer",
-            institutionCode: "DEMO",
-            basisOfRecord: "HUMAN_OBSERVATION",
-          },
-          {
-            id: `${speciesId}_obs_4`,
-            speciesId: speciesId,
-            eventDate: "2022-05-12",
-            decimalLatitude: 49.2992,
-            decimalLongitude: 19.9496,
-            locality: "Zakopane, Małopolskie, Poland",
-            recordedBy: "Demo Observer",
-            institutionCode: "DEMO",
-            basisOfRecord: "HUMAN_OBSERVATION",
-          },
-          {
-            id: `${speciesId}_obs_5`,
-            speciesId: speciesId,
-            eventDate: "2021-09-03",
-            decimalLatitude: 51.7592,
-            decimalLongitude: 19.456,
-            locality: "Łódź, Łódzkie, Poland",
-            recordedBy: "Demo Observer",
-            institutionCode: "DEMO",
-            basisOfRecord: "HUMAN_OBSERVATION",
-          },
-        ]
-
-        setFallbackData({
-          observations: sampleObservations,
-          total: sampleObservations.length,
-          gbifTotal: sampleObservations.length,
-          queryTimeMs: 100,
-        })
-      } else {
-        setFallbackData({
-          observations: speciesObservations,
-          total: speciesObservations.length,
-          gbifTotal: speciesObservations.length,
-          queryTimeMs: 100,
-        })
-      }
-    } else {
-      setFallbackData({ observations: [], total: 0, queryTimeMs: 0 })
-    }
-  }, [speciesId])
-
   return useApi(
     () =>
       speciesId
         ? api.getObservations(speciesId, limit)
         : Promise.resolve({ observations: [], total: 0, queryTimeMs: 0 }),
     [speciesId, limit],
-    fallbackData,
+    { observations: [], total: 0, queryTimeMs: 0 }, // Simple fallback for empty state
   )
 }
 

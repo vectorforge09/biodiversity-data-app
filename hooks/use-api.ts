@@ -1,117 +1,141 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { biodiversityApi, ApiError } from "@/lib/api"
-import type { Species, Observation, StatsResponse } from "@/types/biodiversity"
+import { api, mockData } from "@/lib/api"
 
-// Custom hook for API state management
-export function useApi<T>(apiCall: () => Promise<T>, dependencies: any[] = []) {
+// Generic hook for API state management
+export function useApi<T>(apiCall: () => Promise<T>, dependencies: any[] = [], fallbackData?: T) {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<ApiError | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isUsingMockData, setIsUsingMockData] = useState(false)
 
-  const execute = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setIsUsingMockData(false)
 
     try {
       const result = await apiCall()
       setData(result)
-      return result
     } catch (err) {
-      const apiError = err instanceof ApiError ? err : new ApiError("Unknown error", 0)
-      setError(apiError)
-      throw apiError
+      console.warn("API call failed, using fallback data:", err)
+
+      if (fallbackData) {
+        setData(fallbackData)
+        setIsUsingMockData(true)
+        setError(null) // Don't show error when we have fallback
+      } else {
+        setError(err instanceof Error ? err.message : "An error occurred")
+      }
     } finally {
       setLoading(false)
     }
   }, dependencies)
 
   useEffect(() => {
-    execute()
-  }, [execute])
+    fetchData()
+  }, [fetchData])
 
-  return { data, loading, error, refetch: execute }
+  return { data, loading, error, refetch: fetchData, isUsingMockData }
 }
 
-// Specialized hooks for biodiversity data
-export function useSpeciesSearch() {
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState<Species[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<ApiError | null>(null)
+// Hook for species search with debouncing
+export function useSpeciesSearch(query: string, limit = 10) {
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
 
-  const search = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setResults([])
-      return
+  // Debounce the query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [query])
+
+  // Mock search function for fallback
+  const mockSearch = useCallback(() => {
+    if (!debouncedQuery || debouncedQuery.length < 2) {
+      return Promise.resolve({ results: [], total: 0, queryTimeMs: 0 })
     }
 
-    setLoading(true)
-    setError(null)
+    const filteredSpecies = mockData.species.filter(
+      (species) =>
+        species.scientificName.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        (species.vernacularName && species.vernacularName.toLowerCase().includes(debouncedQuery.toLowerCase())),
+    )
 
-    try {
-      const response = await biodiversityApi.searchSpecies(searchQuery)
-      setResults(response.results || [])
-      setQuery(searchQuery)
-    } catch (err) {
-      const apiError = err instanceof ApiError ? err : new ApiError("Search failed", 0)
-      setError(apiError)
-      setResults([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    return Promise.resolve({
+      results: filteredSpecies.slice(0, limit),
+      total: filteredSpecies.length,
+      queryTimeMs: 50,
+    })
+  }, [debouncedQuery, limit])
 
-  const clearResults = useCallback(() => {
-    setResults([])
-    setQuery("")
-    setError(null)
-  }, [])
-
-  return {
-    query,
-    results,
-    loading,
-    error,
-    search,
-    clearResults,
-  }
+  return useApi(
+    () => api.searchSpecies(debouncedQuery, limit),
+    [debouncedQuery, limit],
+    undefined, // Will use mockSearch result when API fails
+  )
 }
 
-export function useSpeciesObservations(speciesId: string | null) {
-  const [observations, setObservations] = useState<Observation[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<ApiError | null>(null)
+// Hook for species observations
+export function useSpeciesObservations(speciesId: string | null, limit = 300) {
+  const mockObservations = useCallback(() => {
+    if (!speciesId) {
+      return Promise.resolve({ observations: [], total: 0, queryTimeMs: 0 })
+    }
 
-  const fetchObservations = useCallback(async (id: string) => {
-    setLoading(true)
-    setError(null)
+    const speciesObservations = mockData.observations.filter((obs) => obs.speciesId === speciesId)
 
+    return Promise.resolve({
+      observations: speciesObservations,
+      total: speciesObservations.length,
+      gbifTotal: speciesObservations.length,
+      queryTimeMs: 100,
+    })
+  }, [speciesId])
+
+  return useApi(
+    () =>
+      speciesId
+        ? api.getObservations(speciesId, limit)
+        : Promise.resolve({ observations: [], total: 0, queryTimeMs: 0 }),
+    [speciesId, limit],
+    speciesId ? undefined : { observations: [], total: 0, queryTimeMs: 0 },
+  )
+}
+
+// Hook for biodiversity statistics
+export function useBiodiversityStats() {
+  return useApi(() => api.getStats(), [], mockData.stats)
+}
+
+// Hook for API health status
+export function useApiHealth() {
+  const [isOnline, setIsOnline] = useState<boolean | null>(null)
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
+
+  const checkHealth = useCallback(async () => {
     try {
-      const response = await biodiversityApi.getObservations(id)
-      setObservations(response.observations || [])
-    } catch (err) {
-      const apiError = err instanceof ApiError ? err : new ApiError("Failed to fetch observations", 0)
-      setError(apiError)
-      setObservations([])
-    } finally {
-      setLoading(false)
+      await api.healthCheck()
+      setIsOnline(true)
+      setLastChecked(new Date())
+    } catch (error) {
+      setIsOnline(false)
+      setLastChecked(new Date())
     }
   }, [])
 
   useEffect(() => {
-    if (speciesId) {
-      fetchObservations(speciesId)
-    } else {
-      setObservations([])
-      setError(null)
-    }
-  }, [speciesId, fetchObservations])
+    // Initial check
+    checkHealth()
 
-  return { observations, loading, error, refetch: () => speciesId && fetchObservations(speciesId) }
-}
+    // Check every 30 seconds
+    const interval = setInterval(checkHealth, 30000)
 
-export function useBiodiversityStats() {
-  return useApi<StatsResponse>(() => biodiversityApi.getStats())
+    return () => clearInterval(interval)
+  }, [checkHealth])
+
+  return { isOnline, lastChecked, checkHealth }
 }

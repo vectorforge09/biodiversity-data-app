@@ -1,58 +1,62 @@
 "use client"
 
-import type React from "react"
 import { useState } from "react"
-import { Search, MapPin, Calendar, Leaf, AlertCircle } from "lucide-react"
+import { Search, MapPin, BarChart3, Leaf, AlertCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import SpeciesMap from "@/components/species-map"
-import ObservationTimeline from "@/components/observation-timeline"
-import ApiStatus from "@/components/api-status"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SpeciesMap } from "@/components/species-map"
+import { ObservationTimeline } from "@/components/observation-timeline"
+import { ApiStatus } from "@/components/api-status"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { useSpeciesSearch, useSpeciesObservations, useBiodiversityStats } from "@/hooks/use-api"
 import type { Species } from "@/types/biodiversity"
 
-export default function BiodiversityApp() {
+export default function BiodiversityExplorer() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSpecies, setSelectedSpecies] = useState<Species | null>(null)
+  const [showResults, setShowResults] = useState(false)
 
-  // Custom hooks for API integration
+  // API hooks
   const {
-    results: searchResults,
+    data: searchResults,
     loading: searchLoading,
-    error: searchError,
-    search,
-    clearResults,
-  } = useSpeciesSearch()
-
+    isUsingMockData: searchUsingMock,
+  } = useSpeciesSearch(searchQuery)
   const {
-    observations,
+    data: observations,
     loading: observationsLoading,
-    error: observationsError,
+    isUsingMockData: obsUsingMock,
   } = useSpeciesObservations(selectedSpecies?.id || null)
+  const { data: stats, loading: statsLoading, isUsingMockData: statsUsingMock } = useBiodiversityStats()
 
-  const { data: stats, loading: statsLoading, error: statsError } = useBiodiversityStats()
+  const isUsingMockData = searchUsingMock || obsUsingMock || statsUsingMock
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return
-    await search(searchQuery)
-  }
-
-  const handleSpeciesSelect = (species: Species) => {
-    setSelectedSpecies(species)
-    clearResults()
-    setSearchQuery("")
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSearch()
+  // Handle search input
+  const handleSearch = (value: string) => {
+    setSearchQuery(value)
+    setShowResults(value.length >= 2)
+    if (value.length < 2) {
+      setSelectedSpecies(null)
     }
   }
+
+  // Handle species selection
+  const handleSpeciesSelect = (species: Species) => {
+    setSelectedSpecies(species)
+    setShowResults(false)
+    setSearchQuery(species.scientificName)
+  }
+
+  // Featured species for default view
+  const featuredSpecies = [
+    { name: "Pinus sylvestris", common: "Scots Pine", icon: "🌲" },
+    { name: "Cervus elaphus", common: "Red Deer", icon: "🦌" },
+    { name: "Quercus robur", common: "English Oak", icon: "🌳" },
+  ]
 
   return (
     <ErrorBoundary>
@@ -67,276 +71,275 @@ export default function BiodiversityApp() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">BioDiversity Explorer</h1>
-                  <p className="text-sm text-gray-600">Explore Poland's Rich Biodiversity</p>
+                  <p className="text-sm text-gray-600">Explore Poland's biodiversity with GBIF data</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
-                <ApiStatus />
-                <Badge variant="outline" className="text-green-700 border-green-300">
-                  FastAPI Backend
-                </Badge>
-              </div>
+              <ApiStatus />
             </div>
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Backend Status Alert */}
-          {stats?.dataSource?.includes("Mock") && (
-            <Alert className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Demo Mode:</strong> The FastAPI backend is not available, so we're using mock data for
-                demonstration. To use live GBIF data, please start the FastAPI server at{" "}
-                <code>http://localhost:8000</code>
+        {/* Demo Mode Alert */}
+        {isUsingMockData && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <Alert className="bg-amber-50 border-amber-200">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <strong>Demo Mode:</strong> FastAPI backend is not available. Using sample data for demonstration. Start
+                the backend with{" "}
+                <code className="bg-amber-100 px-1 rounded">uvicorn main:app --reload --port 8000</code>
               </AlertDescription>
             </Alert>
-          )}
+          </div>
+        )}
 
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Search Section */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Search className="h-5 w-5" />
-                <span>Species Search</span>
-              </CardTitle>
-              <CardDescription>
-                Search for species by their scientific or common names to explore their distribution and observation
-                history
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Enter species name (e.g., 'Pinus sylvestris' or 'Scots Pine')"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  className="flex-1"
-                />
-                <Button onClick={handleSearch} disabled={searchLoading}>
-                  {searchLoading ? "Searching..." : "Search"}
-                </Button>
-              </div>
+          <div className="mb-8">
+            <div className="relative max-w-2xl mx-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <Input
+                type="text"
+                placeholder="Search species by scientific or common name (e.g., Pinus sylvestris, Eagle)..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-10 pr-4 py-3 text-lg"
+              />
+            </div>
 
-              {/* Search Error */}
-              {searchError && searchError.status !== 0 && (
-                <Alert className="mt-4">
-                  <AlertDescription>Search failed: {searchError.message}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* Search Results */}
-              {searchResults.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <h3 className="font-medium text-gray-900">Search Results:</h3>
-                  <div className="grid gap-2 max-h-60 overflow-y-auto">
-                    {searchResults.map((species) => (
-                      <div
-                        key={species.id}
-                        className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                        onClick={() => handleSpeciesSelect(species)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-gray-900">{species.scientificName}</p>
-                            {species.vernacularName && (
-                              <p className="text-sm text-gray-600">{species.vernacularName}</p>
-                            )}
-                          </div>
-                          <Badge variant="secondary">{species.kingdom}</Badge>
-                        </div>
+            {/* Search Results */}
+            {showResults && (
+              <div className="max-w-2xl mx-auto mt-4">
+                <Card>
+                  <CardContent className="p-0">
+                    {searchLoading ? (
+                      <div className="p-4 space-y-2">
+                        {[...Array(3)].map((_, i) => (
+                          <Skeleton key={i} className="h-16 w-full" />
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ) : searchResults?.results && searchResults.results.length > 0 ? (
+                      <div className="max-h-96 overflow-y-auto">
+                        {searchResults.results.map((species) => (
+                          <button
+                            key={species.id}
+                            onClick={() => handleSpeciesSelect(species)}
+                            className="w-full p-4 text-left hover:bg-gray-50 border-b last:border-b-0 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-semibold text-gray-900">{species.scientificName}</h3>
+                                {species.vernacularName && (
+                                  <p className="text-sm text-gray-600">{species.vernacularName}</p>
+                                )}
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {species.kingdom}
+                                  </Badge>
+                                  {species.family && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {species.family}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <MapPin className="h-5 w-5 text-gray-400" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500">No species found for "{searchQuery}"</div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
 
           {/* Main Content */}
           {selectedSpecies ? (
-            <div className="space-y-6">
-              {/* Selected Species Info */}
+            /* Species Details View */
+            <div className="space-y-8">
+              {/* Species Info */}
               <Card>
                 <CardHeader>
-                  <div className="flex justify-between items-start">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl">{selectedSpecies.scientificName}</CardTitle>
+                      <CardTitle className="text-2xl">{selectedSpecies.scientificName}</CardTitle>
                       {selectedSpecies.vernacularName && (
-                        <CardDescription className="text-base mt-1">{selectedSpecies.vernacularName}</CardDescription>
+                        <CardDescription className="text-lg mt-1">{selectedSpecies.vernacularName}</CardDescription>
                       )}
                     </div>
-                    <div className="flex space-x-2">
-                      <Badge>{selectedSpecies.kingdom}</Badge>
-                      {selectedSpecies.family && <Badge variant="outline">{selectedSpecies.family}</Badge>}
-                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedSpecies(null)
+                        setSearchQuery("")
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <Badge variant="default">{selectedSpecies.kingdom}</Badge>
+                    {selectedSpecies.phylum && <Badge variant="secondary">{selectedSpecies.phylum}</Badge>}
+                    {selectedSpecies.class && <Badge variant="secondary">{selectedSpecies.class}</Badge>}
+                    {selectedSpecies.order && <Badge variant="outline">{selectedSpecies.order}</Badge>}
+                    {selectedSpecies.family && <Badge variant="outline">{selectedSpecies.family}</Badge>}
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="h-4 w-4 text-green-600" />
-                      <span>{observationsLoading ? "Loading..." : `${observations.length} observations`}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-blue-600" />
-                      <span>
-                        {observations.length > 0
-                          ? `${Math.min(...observations.map((o) => new Date(o.eventDate).getFullYear()))} - ${Math.max(...observations.map((o) => new Date(o.eventDate).getFullYear()))}`
-                          : "No date range"}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
               </Card>
 
-              {/* Observations Error */}
-              {observationsError && observationsError.status !== 0 && (
-                <Alert>
-                  <AlertDescription>Failed to load observations: {observationsError.message}</AlertDescription>
-                </Alert>
-              )}
-
               {/* Visualizations */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Map */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
+                    <CardTitle className="flex items-center gap-2">
                       <MapPin className="h-5 w-5" />
-                      <span>Geographic Distribution</span>
+                      Geographic Distribution
                     </CardTitle>
-                    <CardDescription>Observation locations across Poland</CardDescription>
+                    <CardDescription>
+                      Observation locations in Poland
+                      {observations && ` (${observations.total} records)`}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {observationsLoading ? (
-                      <div className="h-64 flex items-center justify-center">
-                        <div className="text-gray-500">Loading map data...</div>
-                      </div>
+                      <Skeleton className="h-96 w-full" />
                     ) : (
-                      <SpeciesMap observations={observations} />
+                      <SpeciesMap observations={observations?.observations || []} />
                     )}
                   </CardContent>
                 </Card>
 
+                {/* Timeline */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Calendar className="h-5 w-5" />
-                      <span>Observation Timeline</span>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Observation Timeline
                     </CardTitle>
                     <CardDescription>Frequency of observations over time</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {observationsLoading ? (
-                      <div className="h-64 flex items-center justify-center">
-                        <div className="text-gray-500">Loading timeline data...</div>
-                      </div>
+                      <Skeleton className="h-96 w-full" />
                     ) : (
-                      <ObservationTimeline observations={observations} />
+                      <ObservationTimeline observations={observations?.observations || []} />
                     )}
                   </CardContent>
                 </Card>
               </div>
             </div>
           ) : (
-            /* Default View */
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Welcome to BioDiversity Explorer</CardTitle>
-                  <CardDescription>
-                    Discover and explore the rich biodiversity of Poland through GBIF data
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {statsError && statsError.status !== 0 && (
-                    <Alert className="mb-6">
-                      <AlertDescription>Failed to load statistics: {statsError.message}</AlertDescription>
-                    </Alert>
-                  )}
+            /* Default Dashboard View */
+            <div className="space-y-8">
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Species</CardTitle>
+                    <Leaf className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {statsLoading ? <Skeleton className="h-8 w-20" /> : stats?.totalSpecies?.toLocaleString() || "0"}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Recorded in Poland</p>
+                  </CardContent>
+                </Card>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {statsLoading ? (
-                      <>
-                        <div className="text-center p-4 bg-gray-50 rounded-lg animate-pulse">
-                          <div className="h-8 bg-gray-300 rounded mb-2"></div>
-                          <div className="h-4 bg-gray-300 rounded"></div>
-                        </div>
-                        <div className="text-center p-4 bg-gray-50 rounded-lg animate-pulse">
-                          <div className="h-8 bg-gray-300 rounded mb-2"></div>
-                          <div className="h-4 bg-gray-300 rounded"></div>
-                        </div>
-                        <div className="text-center p-4 bg-gray-50 rounded-lg animate-pulse">
-                          <div className="h-8 bg-gray-300 rounded mb-2"></div>
-                          <div className="h-4 bg-gray-300 rounded"></div>
-                        </div>
-                      </>
-                    ) : stats ? (
-                      <>
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
-                          <div className="text-3xl font-bold text-green-600">{stats.totalSpecies.toLocaleString()}</div>
-                          <div className="text-sm text-gray-600">Total Species</div>
-                        </div>
-                        <div className="text-center p-4 bg-blue-50 rounded-lg">
-                          <div className="text-3xl font-bold text-blue-600">
-                            {stats.totalObservations.toLocaleString()}
-                          </div>
-                          <div className="text-sm text-gray-600">Observations</div>
-                        </div>
-                        <div className="text-center p-4 bg-purple-50 rounded-lg">
-                          <div className="text-3xl font-bold text-purple-600">{stats.kingdoms}</div>
-                          <div className="text-sm text-gray-600">Kingdoms</div>
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Observations</CardTitle>
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {statsLoading ? (
+                        <Skeleton className="h-8 w-20" />
+                      ) : (
+                        stats?.totalObservations?.toLocaleString() || "0"
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Geographic records</p>
+                  </CardContent>
+                </Card>
 
-                  <Separator className="my-6" />
-                  <div className="prose max-w-none">
-                    <h3 className="text-lg font-semibold mb-3">How to use this application:</h3>
-                    <ul className="space-y-2 text-sm text-gray-600">
-                      <li>• Use the search bar above to find species by their scientific or common names</li>
-                      <li>
-                        • Select a species from the search results to view its distribution map and observation timeline
-                      </li>
-                      <li>• Explore the geographic distribution to see where species have been observed</li>
-                      <li>• Check the timeline to understand observation patterns over time</li>
-                    </ul>
-                  </div>
-                </CardContent>
-              </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Kingdoms</CardTitle>
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {statsLoading ? <Skeleton className="h-8 w-12" /> : stats?.kingdoms || "0"}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Taxonomic kingdoms</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Data Source</CardTitle>
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm font-bold">GBIF</div>
+                    <p className="text-xs text-muted-foreground">Global Biodiversity Information Facility</p>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Featured Species */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Featured Polish Species</CardTitle>
-                  <CardDescription>Some notable species commonly found in Poland</CardDescription>
+                  <CardTitle>Featured Species</CardTitle>
+                  <CardDescription>Explore some of Poland's notable species</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[
-                      { scientific: "Pinus sylvestris", common: "Scots Pine", kingdom: "Plantae" },
-                      { scientific: "Cervus elaphus", common: "Red Deer", kingdom: "Animalia" },
-                      { scientific: "Quercus robur", common: "English Oak", kingdom: "Plantae" },
-                      { scientific: "Lynx lynx", common: "Eurasian Lynx", kingdom: "Animalia" },
-                      { scientific: "Fagus sylvatica", common: "European Beech", kingdom: "Plantae" },
-                      { scientific: "Aquila chrysaetos", common: "Golden Eagle", kingdom: "Animalia" },
-                    ].map((species, index) => (
-                      <div key={index} className="p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="font-medium text-sm">{species.scientific}</div>
-                        <div className="text-xs text-gray-600">{species.common}</div>
-                        <Badge variant="outline" className="mt-2 text-xs">
-                          {species.kingdom}
-                        </Badge>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {featuredSpecies.map((species) => (
+                      <button
+                        key={species.name}
+                        onClick={() => handleSearch(species.name)}
+                        className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className="text-2xl mb-2">{species.icon}</div>
+                        <h3 className="font-semibold">{species.name}</h3>
+                        <p className="text-sm text-gray-600">{species.common}</p>
+                      </button>
                     ))}
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Top Kingdoms */}
+              {stats?.topKingdoms && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Biodiversity by Kingdom</CardTitle>
+                    <CardDescription>Distribution of species across taxonomic kingdoms</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {stats.topKingdoms.map((kingdom) => (
+                        <div key={kingdom.name} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline">{kingdom.name}</Badge>
+                          </div>
+                          <div className="text-sm font-medium">{kingdom.count.toLocaleString()} species</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
-        </div>
+        </main>
       </div>
     </ErrorBoundary>
   )

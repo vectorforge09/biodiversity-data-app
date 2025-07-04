@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useRef } from "react"
 import type { Observation } from "@/types/biodiversity"
 
@@ -7,7 +6,7 @@ interface SpeciesMapProps {
   observations: Observation[]
 }
 
-export default function SpeciesMap({ observations }: SpeciesMapProps) {
+export function SpeciesMap({ observations }: SpeciesMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -24,28 +23,27 @@ export default function SpeciesMap({ observations }: SpeciesMapProps) {
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 
     // Clear canvas
-    ctx.fillStyle = "#f8fafc"
-    ctx.fillRect(0, 0, rect.width, rect.height)
+    ctx.clearRect(0, 0, rect.width, rect.height)
 
-    // Poland bounds
+    // Poland bounds (approximate)
     const bounds = {
       north: 54.5,
-      south: 49,
+      south: 49.0,
       east: 24.1,
       west: 14.1,
     }
 
     // Draw Poland outline (simplified)
-    ctx.strokeStyle = "#64748b"
+    ctx.strokeStyle = "#e5e7eb"
     ctx.lineWidth = 2
     ctx.strokeRect(20, 20, rect.width - 40, rect.height - 40)
 
     // Draw grid lines
-    ctx.strokeStyle = "#e2e8f0"
+    ctx.strokeStyle = "#f3f4f6"
     ctx.lineWidth = 1
-    for (let i = 1; i < 5; i++) {
-      const x = 20 + (i * (rect.width - 40)) / 5
-      const y = 20 + (i * (rect.height - 40)) / 5
+    for (let i = 1; i < 4; i++) {
+      const x = 20 + (i * (rect.width - 40)) / 4
+      const y = 20 + (i * (rect.height - 40)) / 4
       ctx.beginPath()
       ctx.moveTo(x, 20)
       ctx.lineTo(x, rect.height - 20)
@@ -64,40 +62,39 @@ export default function SpeciesMap({ observations }: SpeciesMapProps) {
 
           // Draw observation point
           ctx.fillStyle = "#10b981"
-          ctx.globalAlpha = 0.7
           ctx.beginPath()
-          ctx.arc(x, y, 3, 0, 2 * Math.PI)
+          ctx.arc(x, y, 4, 0, 2 * Math.PI)
+          ctx.fill()
+
+          // Add subtle glow effect
+          ctx.fillStyle = "rgba(16, 185, 129, 0.3)"
+          ctx.beginPath()
+          ctx.arc(x, y, 8, 0, 2 * Math.PI)
           ctx.fill()
         }
       })
     }
 
-    // Reset alpha
-    ctx.globalAlpha = 1
-
     // Add labels
-    ctx.fillStyle = "#374151"
+    ctx.fillStyle = "#6b7280"
     ctx.font = "12px system-ui"
-    ctx.fillText("Poland", 30, 40)
-    ctx.fillText(`${observations.length} observations`, 30, rect.height - 30)
+    ctx.textAlign = "center"
+    ctx.fillText("Poland", rect.width / 2, rect.height - 5)
 
-    // Add legend
-    if (observations.length > 0) {
-      ctx.fillStyle = "#10b981"
-      ctx.beginPath()
-      ctx.arc(rect.width - 80, rect.height - 30, 3, 0, 2 * Math.PI)
-      ctx.fill()
-      ctx.fillStyle = "#374151"
-      ctx.fillText("Observation", rect.width - 70, rect.height - 26)
+    if (observations.length === 0) {
+      ctx.fillStyle = "#9ca3af"
+      ctx.font = "14px system-ui"
+      ctx.textAlign = "center"
+      ctx.fillText("No observations to display", rect.width / 2, rect.height / 2)
     }
   }, [observations])
 
   return (
-    <div className="w-full h-64 relative">
-      <canvas ref={canvasRef} className="w-full h-full border rounded-lg" style={{ width: "100%", height: "100%" }} />
-      {observations.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-          No observation data available
+    <div className="relative w-full h-96 bg-gray-50 rounded-lg overflow-hidden">
+      <canvas ref={canvasRef} className="w-full h-full" style={{ width: "100%", height: "100%" }} />
+      {observations.length > 0 && (
+        <div className="absolute top-2 right-2 bg-white px-2 py-1 rounded text-xs text-gray-600 shadow">
+          {observations.length} observation{observations.length !== 1 ? "s" : ""}
         </div>
       )}
     </div>

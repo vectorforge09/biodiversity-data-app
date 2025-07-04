@@ -1,3 +1,5 @@
+// Type definitions for biodiversity data structures
+
 export interface Species {
   id: string
   scientificName: string
@@ -8,51 +10,49 @@ export interface Species {
   order?: string
   family?: string
   genus?: string
-  species?: string
-  taxonomicStatus?: string
-  rank?: string
-  vernacularNames?: Array<{
-    vernacularName: string
-    language: string
-  }>
 }
 
 export interface Observation {
   id: string
   speciesId: string
   eventDate: string
-  decimalLatitude?: number
-  decimalLongitude?: number
+  decimalLatitude: number
+  decimalLongitude: number
   locality?: string
   recordedBy?: string
   institutionCode?: string
-  basisOfRecord: string
+  basisOfRecord?: string
 }
 
 export interface SearchResponse {
   results: Species[]
   total: number
-  error?: string
-  details?: string
+  queryTimeMs: number
 }
 
-export interface ObservationResponse {
+export interface ObservationsResponse {
   observations: Observation[]
   total: number
-  gbifTotal?: number
-  error?: string
-  details?: string
+  gbifTotal: number
+  queryTimeMs: number
+}
+
+export interface KingdomStats {
+  name: string
+  count: number
 }
 
 export interface StatsResponse {
   totalSpecies: number
   totalObservations: number
   kingdoms: number
-  topKingdoms: Array<{
-    name: string
-    count: number
-  }>
+  topKingdoms: KingdomStats[]
   lastUpdated: string
-  dataSource: string
-  error?: string
+  dataSource?: string
+}
+
+export interface HealthResponse {
+  status: string
+  timestamp: string
+  version?: string
 }

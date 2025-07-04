@@ -10,6 +10,10 @@ export interface Species {
   order?: string
   family?: string
   genus?: string
+  // New fields for coordinate preview
+  observationCount?: number
+  sampleLatitude?: number
+  sampleLongitude?: number
 }
 
 export interface Observation {

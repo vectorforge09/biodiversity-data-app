@@ -132,7 +132,7 @@ export default function BiodiversityDashboard() {
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
                   type="text"
-                  placeholder="Search species by scientific name (e.g., Pinus sylvestris) or common name (e.g., Scots Pine)..."
+                  placeholder="Search species by scientific name (e.g., Quercus robur) or common name (e.g., Oak)..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="pl-12 pr-4 py-4 text-lg border-2 border-gray-200 focus:border-green-500 rounded-xl shadow-sm"
@@ -203,7 +203,18 @@ export default function BiodiversityDashboard() {
                                           {species.family}
                                         </Badge>
                                       )}
+                                      {species.observationCount !== undefined && species.observationCount > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {species.observationCount.toLocaleString()} observations
+                                        </Badge>
+                                      )}
                                     </div>
+                                    {/* Show sample coordinates if available */}
+                                    {species.sampleLatitude && species.sampleLongitude && (
+                                      <div className="text-xs text-gray-500 mt-1 font-mono">
+                                        📍 {species.sampleLatitude.toFixed(4)}°N, {species.sampleLongitude.toFixed(4)}°E
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -244,7 +255,7 @@ export default function BiodiversityDashboard() {
                             {selectedSpecies.vernacularName}
                           </CardDescription>
                         )}
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 mb-3">
                           <Badge variant="default" className="bg-green-600">
                             {selectedSpecies.kingdom}
                           </Badge>
@@ -253,6 +264,18 @@ export default function BiodiversityDashboard() {
                           {selectedSpecies.order && <Badge variant="outline">{selectedSpecies.order}</Badge>}
                           {selectedSpecies.family && <Badge variant="outline">{selectedSpecies.family}</Badge>}
                         </div>
+                        {/* Show coordinate preview */}
+                        {selectedSpecies.sampleLatitude && selectedSpecies.sampleLongitude && (
+                          <div className="text-sm text-gray-600">
+                            📍 Sample location: {selectedSpecies.sampleLatitude.toFixed(4)}°N,{" "}
+                            {selectedSpecies.sampleLongitude.toFixed(4)}°E
+                            {selectedSpecies.observationCount && (
+                              <span className="ml-2">
+                                • {selectedSpecies.observationCount.toLocaleString()} total observations in Poland
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <Button variant="outline" onClick={clearSelection} className="shrink-0 bg-transparent">
@@ -497,6 +520,13 @@ export default function BiodiversityDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
                       {
+                        name: "Quercus robur",
+                        common: "English Oak",
+                        icon: "🌳",
+                        description: "Majestic oak tree, symbol of strength",
+                        kingdom: "Plantae",
+                      },
+                      {
                         name: "Pinus sylvestris",
                         common: "Scots Pine",
                         icon: "🌲",
@@ -509,13 +539,6 @@ export default function BiodiversityDashboard() {
                         icon: "🦌",
                         description: "Large deer species found in Polish forests",
                         kingdom: "Animalia",
-                      },
-                      {
-                        name: "Quercus robur",
-                        common: "English Oak",
-                        icon: "🌳",
-                        description: "Majestic oak tree, symbol of strength",
-                        kingdom: "Plantae",
                       },
                       {
                         name: "Lynx lynx",
@@ -623,8 +646,8 @@ export default function BiodiversityDashboard() {
                       </div>
                       <h3 className="font-bold text-lg text-blue-900 mb-2">1. Search Species</h3>
                       <p className="text-blue-700">
-                        Search by scientific name (e.g., "Pinus sylvestris") or common name (e.g., "Scots Pine") to find
-                        real GBIF data
+                        Search by scientific name (e.g., "Quercus robur") or common name (e.g., "Oak") to find real GBIF
+                        data with coordinates
                       </p>
                     </div>
                     <div className="text-center">
@@ -633,7 +656,7 @@ export default function BiodiversityDashboard() {
                       </div>
                       <h3 className="font-bold text-lg text-blue-900 mb-2">2. View Distribution</h3>
                       <p className="text-blue-700">
-                        See live GBIF observation locations across Poland with interactive geographic visualization
+                        See live GBIF observation locations across Poland with precise latitude/longitude coordinates
                       </p>
                     </div>
                     <div className="text-center">

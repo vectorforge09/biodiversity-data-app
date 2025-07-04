@@ -44,6 +44,10 @@ class Species(BaseModel):
     order: Optional[str] = None
     family: Optional[str] = None
     genus: Optional[str] = None
+    # Add coordinate summary for preview
+    observationCount: Optional[int] = None
+    sampleLatitude: Optional[float] = None
+    sampleLongitude: Optional[float] = None
 
     class Config:
         fields = {'class_': 'class'}
@@ -105,12 +109,93 @@ async def get_http_client():
         yield client
 
 # Utility functions
-def transform_gbif_species(gbif_data: Dict[str, Any]) -> Species:
-    """Transform GBIF species data to our Species model"""
-    # Get vernacular name from the species data or fetch it separately
+async def get_species_sample_coordinates(client: httpx.AsyncClient, species_key: str) -> tuple[Optional[float], Optional[float], int]:
+    """Get a sample coordinate and observation count for a species in Poland"""
+    try:
+        # Get a small sample of observations to extract coordinates
+        params = {
+            "speciesKey": species_key,
+            "country": POLAND_COUNTRY_CODE,
+            "hasCoordinate": "true",
+            "hasGeospatialIssue": "false",
+            "limit": 1,  # Just get one sample
+            "decimalLatitude": f"{POLAND_BOUNDS['south']},{POLAND_BOUNDS['north']}",
+            "decimalLongitude": f"{POLAND_BOUNDS['west']},{POLAND_BOUNDS['east']}"
+        }
+        
+        response = await client.get(f"{GBIF_BASE_URL}/occurrence/search", params=params)
+        if response.status_code == 200:
+            data = response.json()
+            total_count = data.get("count", 0)
+            results = data.get("results", [])
+            
+            if results and len(results) > 0:
+                first_result = results[0]
+                lat = first_result.get("decimalLatitude")
+                lng = first_result.get("decimalLongitude")
+                
+                if lat is not None and lng is not None:
+                    try:
+                        lat = float(lat)
+                        lng = float(lng)
+                        # Validate coordinates are within Poland bounds
+                        if (POLAND_BOUNDS["south"] <= lat <= POLAND_BOUNDS["north"] and
+                            POLAND_BOUNDS["west"] <= lng <= POLAND_BOUNDS["east"]):
+                            return lat, lng, total_count
+                    except (ValueError, TypeError):
+                        pass
+            
+            return None, None, total_count
+        
+        return None, None, 0
+    except Exception as e:
+        logger.warning(f"Failed to get sample coordinates for species {species_key}: {e}")
+        return None, None, 0
+
+def deduplicate_species_results(species_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Deduplicate species results by scientific name, keeping the most complete record"""
+    species_map = {}
+    
+    for species in species_list:
+        scientific_name = species.get("scientificName", "").strip()
+        if not scientific_name:
+            continue
+            
+        # Remove author citations for better matching (e.g., "Quercus robur L." -> "Quercus robur")
+        clean_name = scientific_name.split(" L.")[0].split(" (")[0].strip()
+        
+        if clean_name not in species_map:
+            species_map[clean_name] = species
+        else:
+            # Keep the record with more complete taxonomic information
+            existing = species_map[clean_name]
+            current = species
+            
+            # Count non-null taxonomic fields
+            existing_fields = sum(1 for field in ["kingdom", "phylum", "class", "order", "family", "genus"] 
+                                if existing.get(field))
+            current_fields = sum(1 for field in ["kingdom", "phylum", "class", "order", "family", "genus"] 
+                               if current.get(field))
+            
+            # Also prefer records with vernacular names
+            if current.get("vernacularName") and not existing.get("vernacularName"):
+                current_fields += 1
+            elif existing.get("vernacularName") and not current.get("vernacularName"):
+                existing_fields += 1
+            
+            if current_fields > existing_fields:
+                species_map[clean_name] = current
+    
+    return list(species_map.values())
+
+async def transform_gbif_species(gbif_data: Dict[str, Any], client: httpx.AsyncClient) -> Species:
+    """Transform GBIF species data to our Species model with coordinate preview"""
+    species_key = str(gbif_data.get("key", ""))
+    
+    # Get vernacular name from the species data
     vernacular_name = None
     if "vernacularNames" in gbif_data and gbif_data["vernacularNames"]:
-        # Find English vernacular name
+        # Find English vernacular name first
         for vn in gbif_data["vernacularNames"]:
             if vn.get("language") == "en":
                 vernacular_name = vn.get("vernacularName")
@@ -119,8 +204,15 @@ def transform_gbif_species(gbif_data: Dict[str, Any]) -> Species:
         if not vernacular_name and gbif_data["vernacularNames"]:
             vernacular_name = gbif_data["vernacularNames"][0].get("vernacularName")
     
+    # If no vernacular name in species data, use the one from search results
+    if not vernacular_name:
+        vernacular_name = gbif_data.get("vernacularName")
+    
+    # Get sample coordinates and observation count
+    sample_lat, sample_lng, obs_count = await get_species_sample_coordinates(client, species_key)
+    
     return Species(
-        id=str(gbif_data.get("key", "")),
+        id=species_key,
         scientificName=gbif_data.get("scientificName", ""),
         vernacularName=vernacular_name,
         kingdom=gbif_data.get("kingdom", ""),
@@ -128,7 +220,10 @@ def transform_gbif_species(gbif_data: Dict[str, Any]) -> Species:
         class_=gbif_data.get("class"),
         order=gbif_data.get("order"),
         family=gbif_data.get("family"),
-        genus=gbif_data.get("genus")
+        genus=gbif_data.get("genus"),
+        observationCount=obs_count,
+        sampleLatitude=sample_lat,
+        sampleLongitude=sample_lng
     )
 
 def transform_gbif_occurrence(gbif_data: Dict[str, Any], species_id: str) -> Optional[Observation]:
@@ -225,26 +320,39 @@ async def search_species(
     limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
     client: httpx.AsyncClient = Depends(get_http_client)
 ):
-    """Search for species by scientific or vernacular name"""
+    """Search for species by scientific or vernacular name with coordinate preview"""
     start_time = time.time()
     
     try:
         # Search GBIF species API
         params = {
             "q": q,
-            "limit": limit,
+            "limit": limit * 3,  # Get more results to account for deduplication
             "rank": "SPECIES",
             "status": "ACCEPTED"
         }
+        
+        logger.info(f"Searching GBIF for: {q}")
         
         response = await client.get(f"{GBIF_BASE_URL}/species/search", params=params)
         response.raise_for_status()
         
         gbif_data = response.json()
+        raw_results = gbif_data.get("results", [])
         
-        # Transform results and fetch vernacular names
+        logger.info(f"GBIF returned {len(raw_results)} raw results")
+        
+        # Deduplicate results by scientific name
+        deduplicated_results = deduplicate_species_results(raw_results)
+        
+        # Limit to requested number after deduplication
+        deduplicated_results = deduplicated_results[:limit]
+        
+        logger.info(f"After deduplication: {len(deduplicated_results)} unique species")
+        
+        # Transform results and fetch additional data
         species_list = []
-        for result in gbif_data.get("results", []):
+        for result in deduplicated_results:
             try:
                 # Fetch vernacular names for each species
                 species_key = result.get("key")
@@ -258,13 +366,15 @@ async def search_species(
                         logger.warning(f"Failed to fetch vernacular names for species {species_key}: {e}")
                         result["vernacularNames"] = []
                 
-                species = transform_gbif_species(result)
+                species = await transform_gbif_species(result, client)
                 species_list.append(species)
             except Exception as e:
                 logger.warning(f"Failed to transform species: {e}")
                 continue
         
         query_time = int((time.time() - start_time) * 1000)
+        
+        logger.info(f"Returning {len(species_list)} species with coordinate data")
         
         return SearchResponse(
             results=species_list,
@@ -368,7 +478,7 @@ async def get_species_details(
             logger.warning(f"Failed to fetch vernacular names: {e}")
             gbif_data["vernacularNames"] = []
         
-        return transform_gbif_species(gbif_data)
+        return await transform_gbif_species(gbif_data, client)
         
     except httpx.HTTPError as e:
         if e.response.status_code == 404:

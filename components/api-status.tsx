@@ -2,15 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle, Clock, WifiOff } from "lucide-react"
+import { CheckCircle, Clock, WifiOff, AlertTriangle } from "lucide-react"
 import { checkBackendHealth } from "@/lib/api"
 
-type ApiStatus = "checking" | "online" | "offline" | "error"
+type ApiStatus = "checking" | "online" | "offline" | "mock"
 
 export default function ApiStatus() {
   const [status, setStatus] = useState<ApiStatus>("checking")
   const [lastCheck, setLastCheck] = useState<Date | null>(null)
-  const [errorDetails, setErrorDetails] = useState<string | null>(null)
+  const [backendUrl, setBackendUrl] = useState<string>("")
+
+  useEffect(() => {
+    // Get the backend URL for display
+    setBackendUrl(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
+  }, [])
 
   useEffect(() => {
     const checkApiStatus = async () => {
@@ -21,14 +26,11 @@ export default function ApiStatus() {
 
         if (isHealthy) {
           setStatus("online")
-          setErrorDetails(null)
         } else {
           setStatus("offline")
-          setErrorDetails("Backend API is not responding")
         }
       } catch (error) {
-        setStatus("error")
-        setErrorDetails(error instanceof Error ? error.message : "Unknown error")
+        setStatus("offline")
       } finally {
         setLastCheck(new Date())
       }
@@ -59,15 +61,15 @@ export default function ApiStatus() {
         }
       case "offline":
         return {
-          icon: <WifiOff className="h-3 w-3" />,
-          text: "API Offline",
-          className: "bg-red-100 text-red-800 border-red-300",
+          icon: <AlertTriangle className="h-3 w-3" />,
+          text: "Using Mock Data",
+          className: "bg-orange-100 text-orange-800 border-orange-300",
         }
-      case "error":
+      case "mock":
         return {
-          icon: <AlertCircle className="h-3 w-3" />,
-          text: "API Error",
-          className: "bg-red-100 text-red-800 border-red-300",
+          icon: <WifiOff className="h-3 w-3" />,
+          text: "Mock Mode",
+          className: "bg-blue-100 text-blue-800 border-blue-300",
         }
     }
   }
@@ -79,7 +81,11 @@ export default function ApiStatus() {
       <Badge
         variant="outline"
         className={`${config.className} flex items-center space-x-1`}
-        title={errorDetails || undefined}
+        title={
+          status === "offline"
+            ? `Backend not available at ${backendUrl}. Using mock data for demonstration.`
+            : undefined
+        }
       >
         {config.icon}
         <span className="text-xs">{config.text}</span>

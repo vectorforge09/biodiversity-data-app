@@ -1,29 +1,62 @@
 #!/bin/bash
 
 # BioDiversity API Test Runner
-echo "🧪 Running BioDiversity API Tests..."
+# This script runs the complete test suite with coverage reporting
 
-# Install test dependencies
-pip install -r requirements.txt
+set -e  # Exit on any error
 
-# Run unit tests with coverage
-echo "📊 Running unit tests with coverage..."
-pytest tests/ -v --cov=main --cov-report=html --cov-report=term-missing
+echo "🧪 Starting BioDiversity API Test Suite"
+echo "========================================"
 
-# Run performance tests
-echo "⚡ Running performance tests..."
-pytest tests/test_performance.py -v
+# Check if virtual environment is activated
+if [[ "$VIRTUAL_ENV" == "" ]]; then
+    echo "⚠️  Warning: No virtual environment detected"
+    echo "   Consider activating your virtual environment first"
+    echo ""
+fi
 
-# Run API integration tests
-echo "🔗 Running integration tests..."
-python -m pytest tests/test_api.py::TestSpeciesSearch -v
-python -m pytest tests/test_api.py::TestObservations -v
-python -m pytest tests/test_api.py::TestStats -v
+# Install test dependencies if not already installed
+echo "📦 Installing test dependencies..."
+pip install -r requirements-test.txt > /dev/null 2>&1
 
-# Generate test report
-echo "📋 Generating test report..."
-echo "Test Results Summary:" > test_report.txt
-echo "===================" >> test_report.txt
-pytest --tb=no --quiet >> test_report.txt
+# Run different test categories
+echo ""
+echo "🔍 Running Unit Tests..."
+python -m pytest tests/test_api.py::TestSpeciesSearch -v --tb=short
 
-echo "✅ Tests completed! Check test_report.txt and htmlcov/ for detailed results."
+echo ""
+echo "🔍 Running Data Transformation Tests..."
+python -m pytest tests/test_api.py::TestDataTransformation -v --tb=short
+
+echo ""
+echo "🔍 Running Error Handling Tests..."
+python -m pytest tests/test_api.py::TestErrorHandling -v --tb=short
+
+echo ""
+echo "🔍 Running Async Integration Tests..."
+python -m pytest tests/test_api.py::TestAsyncIntegration -v --tb=short
+
+echo ""
+echo "📊 Running Full Test Suite with Coverage..."
+python -m pytest tests/ -v --cov=main --cov-report=term-missing --cov-report=html
+
+echo ""
+echo "🚀 Running Performance Tests..."
+python -m pytest tests/test_performance.py -v --tb=short
+
+echo ""
+echo "✅ All tests completed!"
+echo ""
+echo "📈 Coverage report generated in htmlcov/index.html"
+echo "🎯 Performance results available above"
+
+# Check if coverage is acceptable
+coverage_percentage=$(python -m coverage report --format=total 2>/dev/null || echo "0")
+if (( $(echo "$coverage_percentage >= 80" | bc -l) )); then
+    echo "✅ Coverage: ${coverage_percentage}% (Good)"
+else
+    echo "⚠️  Coverage: ${coverage_percentage}% (Consider improving)"
+fi
+
+echo ""
+echo "🏁 Test suite execution completed successfully!"

@@ -1,25 +1,25 @@
 "use client"
 
 import React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertTriangle, RefreshCw } from "lucide-react"
-import { ApiError } from "@/lib/api"
 
 interface ErrorBoundaryState {
   hasError: boolean
-  error: Error | null
+  error?: Error
 }
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
-  fallback?: React.ComponentType<{ error: Error; retry: () => void }>
+  fallback?: React.ComponentType<{ error: Error; resetError: () => void }>
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false }
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -30,61 +30,60 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     console.error("Error caught by boundary:", error, errorInfo)
   }
 
-  retry = () => {
-    this.setState({ hasError: false, error: null })
+  resetError = () => {
+    this.setState({ hasError: false, error: undefined })
   }
 
   render() {
-    if (this.state.hasError && this.state.error) {
+    if (this.state.hasError) {
       if (this.props.fallback) {
         const FallbackComponent = this.props.fallback
-        return <FallbackComponent error={this.state.error} retry={this.retry} />
+        return <FallbackComponent error={this.state.error!} resetError={this.resetError} />
       }
 
-      return <DefaultErrorFallback error={this.state.error} retry={this.retry} />
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <CardTitle className="text-red-900">Something went wrong</CardTitle>
+              </div>
+              <CardDescription>The application encountered an unexpected error</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error Details</AlertTitle>
+                <AlertDescription className="mt-2 text-sm">
+                  {this.state.error?.message || "Unknown error occurred"}
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Button onClick={this.resetError} className="w-full">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+                <Button variant="outline" onClick={() => window.location.reload()} className="w-full">
+                  Reload Page
+                </Button>
+              </div>
+
+              <div className="text-xs text-gray-500 mt-4">
+                <p>If this problem persists:</p>
+                <ul className="list-disc list-inside mt-1 space-y-1">
+                  <li>Check if the FastAPI backend is running</li>
+                  <li>Verify the API URL configuration</li>
+                  <li>Check your network connection</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )
     }
 
     return this.props.children
   }
-}
-
-function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => void }) {
-  const isApiError = error instanceof ApiError
-
-  return (
-    <Card className="max-w-md mx-auto mt-8">
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2 text-red-600">
-          <AlertTriangle className="h-5 w-5" />
-          <span>Something went wrong</span>
-        </CardTitle>
-        <CardDescription>
-          {isApiError ? `API Error (${error.status}): ${error.message}` : error.message}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button onClick={retry} className="w-full">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Try Again
-        </Button>
-        {isApiError && error.status === 0 && (
-          <p className="text-sm text-gray-600 mt-2">Make sure the FastAPI backend is running on the correct port.</p>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-// Hook for handling API errors in components
-export function useErrorHandler() {
-  const handleError = (error: unknown) => {
-    if (error instanceof ApiError) {
-      console.error("API Error:", error.message, error.details)
-      // You could integrate with a toast notification system here
-    } else {
-      console.error("Unexpected error:", error)
-    }
-  }
-
-  return { handleError }
 }

@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Search, MapPin, Calendar, Leaf } from "lucide-react"
+import { Search, MapPin, Calendar, Leaf, AlertCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -81,6 +81,18 @@ export default function BiodiversityApp() {
         </header>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Backend Status Alert */}
+          {stats?.dataSource?.includes("Mock") && (
+            <Alert className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Demo Mode:</strong> The FastAPI backend is not available, so we're using mock data for
+                demonstration. To use live GBIF data, please start the FastAPI server at{" "}
+                <code>http://localhost:8000</code>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Search Section */}
           <Card className="mb-8">
             <CardHeader>
@@ -108,12 +120,9 @@ export default function BiodiversityApp() {
               </div>
 
               {/* Search Error */}
-              {searchError && (
+              {searchError && searchError.status !== 0 && (
                 <Alert className="mt-4">
-                  <AlertDescription>
-                    Search failed: {searchError.message}
-                    {searchError.status === 0 && " (Backend not available)"}
-                  </AlertDescription>
+                  <AlertDescription>Search failed: {searchError.message}</AlertDescription>
                 </Alert>
               )}
 
@@ -183,7 +192,7 @@ export default function BiodiversityApp() {
               </Card>
 
               {/* Observations Error */}
-              {observationsError && (
+              {observationsError && observationsError.status !== 0 && (
                 <Alert>
                   <AlertDescription>Failed to load observations: {observationsError.message}</AlertDescription>
                 </Alert>
@@ -241,7 +250,7 @@ export default function BiodiversityApp() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {statsError && (
+                  {statsError && statsError.status !== 0 && (
                     <Alert className="mb-6">
                       <AlertDescription>Failed to load statistics: {statsError.message}</AlertDescription>
                     </Alert>

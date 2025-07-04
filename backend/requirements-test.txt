@@ -1,0 +1,9 @@
+# Testing dependencies for BioDiversity API
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+pytest-benchmark>=4.0.0
+httpx>=0.24.0
+coverage>=7.2.0
+bc  # For bash calculations in test script

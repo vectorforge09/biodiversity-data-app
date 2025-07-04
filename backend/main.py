@@ -91,12 +91,12 @@ class HealthResponse(BaseModel):
 GBIF_BASE_URL = "https://api.gbif.org/v1"
 POLAND_COUNTRY_CODE = "PL"
 
-# Poland geographic bounds
+# Poland geographic bounds (more precise)
 POLAND_BOUNDS = {
-    "north": 54.5,
-    "south": 49.0,
-    "east": 24.1,
-    "west": 14.1
+    "north": 54.8389,
+    "south": 49.002,
+    "east": 24.1458,
+    "west": 14.1229
 }
 
 # HTTP client dependency
@@ -107,10 +107,22 @@ async def get_http_client():
 # Utility functions
 def transform_gbif_species(gbif_data: Dict[str, Any]) -> Species:
     """Transform GBIF species data to our Species model"""
+    # Get vernacular name from the species data or fetch it separately
+    vernacular_name = None
+    if "vernacularNames" in gbif_data and gbif_data["vernacularNames"]:
+        # Find English vernacular name
+        for vn in gbif_data["vernacularNames"]:
+            if vn.get("language") == "en":
+                vernacular_name = vn.get("vernacularName")
+                break
+        # If no English name, take the first available
+        if not vernacular_name and gbif_data["vernacularNames"]:
+            vernacular_name = gbif_data["vernacularNames"][0].get("vernacularName")
+    
     return Species(
         id=str(gbif_data.get("key", "")),
         scientificName=gbif_data.get("scientificName", ""),
-        vernacularName=gbif_data.get("vernacularName"),
+        vernacularName=vernacular_name,
         kingdom=gbif_data.get("kingdom", ""),
         phylum=gbif_data.get("phylum"),
         class_=gbif_data.get("class"),
@@ -119,39 +131,64 @@ def transform_gbif_species(gbif_data: Dict[str, Any]) -> Species:
         genus=gbif_data.get("genus")
     )
 
-def transform_gbif_occurrence(gbif_data: Dict[str, Any]) -> Optional[Observation]:
-    """Transform GBIF occurrence data to our Observation model"""
+def transform_gbif_occurrence(gbif_data: Dict[str, Any], species_id: str) -> Optional[Observation]:
+    """Transform GBIF occurrence data to our Observation model with enhanced coordinate validation"""
     try:
-        # Validate required fields
-        if not all([
-            gbif_data.get("key"),
-            gbif_data.get("speciesKey"),
-            gbif_data.get("eventDate"),
-            gbif_data.get("decimalLatitude"),
-            gbif_data.get("decimalLongitude")
-        ]):
-            return None
-
-        # Validate coordinates are within Poland bounds
-        lat = float(gbif_data["decimalLatitude"])
-        lng = float(gbif_data["decimalLongitude"])
+        # Extract coordinates
+        lat = gbif_data.get("decimalLatitude")
+        lng = gbif_data.get("decimalLongitude")
         
+        # Validate that coordinates exist and are numeric
+        if lat is None or lng is None:
+            return None
+            
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (ValueError, TypeError):
+            return None
+        
+        # Validate coordinates are within reasonable bounds (not just Poland)
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            return None
+            
+        # Validate coordinates are within Poland bounds
         if not (POLAND_BOUNDS["south"] <= lat <= POLAND_BOUNDS["north"] and
                 POLAND_BOUNDS["west"] <= lng <= POLAND_BOUNDS["east"]):
             return None
 
+        # Validate required fields
+        occurrence_key = gbif_data.get("key")
+        event_date = gbif_data.get("eventDate")
+        
+        if not occurrence_key or not event_date:
+            return None
+
+        # Build locality string from available location data
+        locality_parts = []
+        if gbif_data.get("locality"):
+            locality_parts.append(gbif_data["locality"])
+        if gbif_data.get("municipality"):
+            locality_parts.append(gbif_data["municipality"])
+        if gbif_data.get("stateProvince"):
+            locality_parts.append(gbif_data["stateProvince"])
+        if gbif_data.get("country"):
+            locality_parts.append(gbif_data["country"])
+        
+        locality = ", ".join(locality_parts) if locality_parts else None
+
         return Observation(
-            id=str(gbif_data["key"]),
-            speciesId=str(gbif_data["speciesKey"]),
-            eventDate=gbif_data["eventDate"],
+            id=str(occurrence_key),
+            speciesId=species_id,
+            eventDate=str(event_date),
             decimalLatitude=lat,
             decimalLongitude=lng,
-            locality=gbif_data.get("locality"),
+            locality=locality,
             recordedBy=gbif_data.get("recordedBy"),
             institutionCode=gbif_data.get("institutionCode"),
             basisOfRecord=gbif_data.get("basisOfRecord")
         )
-    except (ValueError, KeyError) as e:
+    except Exception as e:
         logger.warning(f"Failed to transform occurrence data: {e}")
         return None
 
@@ -205,10 +242,22 @@ async def search_species(
         
         gbif_data = response.json()
         
-        # Transform results
+        # Transform results and fetch vernacular names
         species_list = []
         for result in gbif_data.get("results", []):
             try:
+                # Fetch vernacular names for each species
+                species_key = result.get("key")
+                if species_key:
+                    try:
+                        vernacular_response = await client.get(f"{GBIF_BASE_URL}/species/{species_key}/vernacularNames")
+                        if vernacular_response.status_code == 200:
+                            vernacular_data = vernacular_response.json()
+                            result["vernacularNames"] = vernacular_data.get("results", [])
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch vernacular names for species {species_key}: {e}")
+                        result["vernacularNames"] = []
+                
                 species = transform_gbif_species(result)
                 species_list.append(species)
             except Exception as e:
@@ -236,39 +285,56 @@ async def get_species_observations(
     limit: int = Query(300, ge=1, le=1000, description="Maximum number of observations"),
     client: httpx.AsyncClient = Depends(get_http_client)
 ):
-    """Get observations for a specific species in Poland"""
+    """Get observations for a specific species in Poland with enhanced coordinate data"""
     start_time = time.time()
     
     try:
-        # Get occurrences from GBIF
+        # Get occurrences from GBIF with enhanced parameters for better coordinate data
         params = {
             "speciesKey": species_id,
             "country": POLAND_COUNTRY_CODE,
             "hasCoordinate": "true",
             "hasGeospatialIssue": "false",
             "limit": limit,
+            # Add coordinate bounds to ensure we get Poland data
             "decimalLatitude": f"{POLAND_BOUNDS['south']},{POLAND_BOUNDS['north']}",
-            "decimalLongitude": f"{POLAND_BOUNDS['west']},{POLAND_BOUNDS['east']}"
+            "decimalLongitude": f"{POLAND_BOUNDS['west']},{POLAND_BOUNDS['east']}",
+            # Request specific fields to ensure we get coordinate data
+            "coordinateUncertaintyInMeters": "0,10000"  # Only records with reasonable coordinate precision
         }
+        
+        logger.info(f"Fetching observations for species {species_id} with params: {params}")
         
         response = await client.get(f"{GBIF_BASE_URL}/occurrence/search", params=params)
         response.raise_for_status()
         
         gbif_data = response.json()
+        gbif_total = gbif_data.get("count", 0)
         
-        # Transform observations
+        logger.info(f"GBIF returned {len(gbif_data.get('results', []))} results out of {gbif_total} total")
+        
+        # Transform observations with enhanced coordinate validation
         observations = []
+        coordinate_issues = 0
+        
         for result in gbif_data.get("results", []):
-            observation = transform_gbif_occurrence(result)
+            observation = transform_gbif_occurrence(result, species_id)
             if observation:
                 observations.append(observation)
+            else:
+                coordinate_issues += 1
+        
+        if coordinate_issues > 0:
+            logger.info(f"Filtered out {coordinate_issues} observations due to coordinate issues")
         
         query_time = int((time.time() - start_time) * 1000)
+        
+        logger.info(f"Returning {len(observations)} valid observations for species {species_id}")
         
         return ObservationsResponse(
             observations=observations,
             total=len(observations),
-            gbifTotal=gbif_data.get("count", 0),
+            gbifTotal=gbif_total,
             queryTimeMs=query_time
         )
         
@@ -286,10 +352,22 @@ async def get_species_details(
 ):
     """Get detailed information about a specific species"""
     try:
+        # Fetch species details
         response = await client.get(f"{GBIF_BASE_URL}/species/{species_id}")
         response.raise_for_status()
         
         gbif_data = response.json()
+        
+        # Fetch vernacular names
+        try:
+            vernacular_response = await client.get(f"{GBIF_BASE_URL}/species/{species_id}/vernacularNames")
+            if vernacular_response.status_code == 200:
+                vernacular_data = vernacular_response.json()
+                gbif_data["vernacularNames"] = vernacular_data.get("results", [])
+        except Exception as e:
+            logger.warning(f"Failed to fetch vernacular names: {e}")
+            gbif_data["vernacularNames"] = []
+        
         return transform_gbif_species(gbif_data)
         
     except httpx.HTTPError as e:

@@ -22,43 +22,33 @@ export default function ObservationTimeline({ observations }: ObservationTimelin
 
     // Convert to array and sort by year
     return Object.entries(yearCounts)
-      .map(([year, count]) => ({ year, observations: count }))
-      .sort((a, b) => Number.parseInt(a.year) - Number.parseInt(b.year))
+      .map(([year, count]) => ({
+        year: Number.parseInt(year),
+        observations: count,
+      }))
+      .sort((a, b) => a.year - b.year)
   }, [observations])
 
   if (observations.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No observation data available</p>
-      </div>
+      <div className="w-full h-64 flex items-center justify-center text-gray-500">No observation data available</div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={timelineData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="year" fontSize={12} tick={{ fill: "#6b7280" }} />
-            <YAxis fontSize={12} tick={{ fill: "#6b7280" }} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "6px",
-                fontSize: "12px",
-              }}
-              labelStyle={{ color: "#374151" }}
-            />
-            <Bar dataKey="observations" fill="#059669" radius={[2, 2, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="text-xs text-gray-600">
-        Total observations: {observations.length} | Years covered:{" "}
-        {timelineData.length > 0 ? `${timelineData[0].year} - ${timelineData[timelineData.length - 1].year}` : "N/A"}
-      </div>
+    <div className="w-full h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="year" tick={{ fontSize: 12 }} tickFormatter={(value) => value.toString()} />
+          <YAxis tick={{ fontSize: 12 }} />
+          <Tooltip
+            labelFormatter={(value) => `Year: ${value}`}
+            formatter={(value: number) => [value, "Observations"]}
+          />
+          <Bar dataKey="observations" fill="#10b981" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   )
 }

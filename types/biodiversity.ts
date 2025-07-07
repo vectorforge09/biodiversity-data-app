@@ -3,6 +3,7 @@
 export interface Species {
   id: string
   scientificName: string
+  canonicalName?: string
   vernacularName?: string
   kingdom: string
   phylum?: string
@@ -10,7 +11,10 @@ export interface Species {
   order?: string
   family?: string
   genus?: string
-  // New fields for coordinate preview
+  species?: string
+  rank?: string
+  taxonomicStatus?: string
+  // Geographic preview data
   observationCount?: number
   sampleLatitude?: number
   sampleLongitude?: number
@@ -23,9 +27,15 @@ export interface Observation {
   decimalLatitude: number
   decimalLongitude: number
   locality?: string
+  municipality?: string
+  stateProvince?: string
+  country?: string
   recordedBy?: string
   institutionCode?: string
   basisOfRecord?: string
+  year?: number
+  month?: number
+  coordinateUncertaintyInMeters?: number
 }
 
 export interface SearchResponse {
@@ -44,6 +54,7 @@ export interface ObservationsResponse {
 export interface KingdomStats {
   name: string
   count: number
+  percentage: number
 }
 
 export interface StatsResponse {
@@ -53,6 +64,7 @@ export interface StatsResponse {
   topKingdoms: KingdomStats[]
   lastUpdated: string
   dataSource?: string
+  queryTimeMs: number
 }
 
 export interface HealthResponse {

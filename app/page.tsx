@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Search, MapPin, BarChart3, Leaf, AlertCircle, Globe, Calendar, Wifi, WifiOff } from "lucide-react"
+import { Search, MapPin, BarChart3, Leaf, AlertCircle, Globe, Calendar, Wifi, WifiOff, Layers } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SpeciesMap } from "@/components/species-map"
+import { SpeciesDensityMap } from "@/components/species-density-map"
 import { ObservationTimeline } from "@/components/observation-timeline"
 import { ApiStatus } from "@/components/api-status"
 import { ErrorBoundary } from "@/components/error-boundary"
@@ -20,7 +20,7 @@ export default function BiodiversityDashboard() {
   const [selectedSpecies, setSelectedSpecies] = useState<Species | null>(null)
   const [showResults, setShowResults] = useState(false)
 
-  // API hooks - all connected to FastAPI backend
+  // API hooks - all connected to FastAPI backend with vernacular names
   const { data: searchResults, loading: searchLoading, error: searchError } = useSpeciesSearch(searchQuery)
   const {
     data: observations,
@@ -65,14 +65,15 @@ export default function BiodiversityDashboard() {
               </div>
               <CardTitle className="text-2xl text-red-900">Backend Unavailable</CardTitle>
               <CardDescription className="text-lg">
-                Cannot connect to the FastAPI backend that provides GBIF data access.
+                Cannot connect to the FastAPI backend that provides GBIF data access with vernacular names.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <Alert className="bg-red-50 border-red-200">
                 <AlertCircle className="h-4 w-4 text-red-600" />
                 <AlertDescription className="text-red-800">
-                  <strong>Required:</strong> Start the FastAPI backend server to access GBIF biodiversity data.
+                  <strong>Required:</strong> Start the FastAPI backend server to access GBIF biodiversity data with
+                  vernacular names and density maps.
                 </AlertDescription>
               </Alert>
 
@@ -94,7 +95,10 @@ export default function BiodiversityDashboard() {
 
               <div className="text-sm text-gray-600 text-center">
                 <p>Expected backend URL: {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}</p>
-                <p>This application requires real-time access to GBIF data through the FastAPI backend.</p>
+                <p>
+                  This application requires real-time access to GBIF data with vernacular names through the FastAPI
+                  backend.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -116,7 +120,7 @@ export default function BiodiversityDashboard() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Poland Biodiversity Explorer</h1>
-                  <p className="text-sm text-gray-600">Real-time GBIF data visualization</p>
+                  <p className="text-sm text-gray-600">Real-time GBIF data with vernacular names & density maps</p>
                 </div>
               </div>
               <ApiStatus />
@@ -132,7 +136,7 @@ export default function BiodiversityDashboard() {
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
                   type="text"
-                  placeholder="Search species by scientific name (e.g., Pinus sylvestris) or common name (e.g., Pine)..."
+                  placeholder="Search species by scientific name (e.g., Quercus robur) or common name (e.g., Oak)..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="pl-12 pr-4 py-4 text-lg border-2 border-gray-200 focus:border-green-500 rounded-xl shadow-sm"
@@ -150,7 +154,7 @@ export default function BiodiversityDashboard() {
               </div>
             </div>
 
-            {/* Search Results Dropdown */}
+            {/* Search Results Dropdown with Vernacular Names */}
             {showResults && (
               <div className="max-w-3xl mx-auto mt-4">
                 <Card className="shadow-lg border-2">
@@ -191,11 +195,8 @@ export default function BiodiversityDashboard() {
                                   </div>
                                   <div>
                                     <h3 className="font-semibold text-gray-900 text-lg">{species.scientificName}</h3>
-                                    {species.canonicalName && species.canonicalName !== species.scientificName && (
-                                      <p className="text-sm text-gray-500 font-mono">{species.canonicalName}</p>
-                                    )}
                                     {species.vernacularName && (
-                                      <p className="text-sm text-gray-600 font-medium">{species.vernacularName}</p>
+                                      <p className="text-sm text-green-600 font-medium">🌍 {species.vernacularName}</p>
                                     )}
                                     <div className="flex items-center gap-2 mt-2">
                                       <Badge variant="default" className="text-xs">
@@ -212,7 +213,7 @@ export default function BiodiversityDashboard() {
                                         </Badge>
                                       )}
                                       {species.observationCount !== undefined && species.observationCount > 0 && (
-                                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                        <Badge variant="secondary" className="text-xs">
                                           {species.observationCount.toLocaleString()} observations
                                         </Badge>
                                       )}
@@ -226,7 +227,10 @@ export default function BiodiversityDashboard() {
                                   </div>
                                 </div>
                               </div>
-                              <MapPin className="h-5 w-5 text-gray-400" />
+                              <div className="flex flex-col items-center gap-1">
+                                <MapPin className="h-5 w-5 text-gray-400" />
+                                <Layers className="h-4 w-4 text-blue-400" />
+                              </div>
                             </div>
                           </button>
                         ))}
@@ -246,9 +250,9 @@ export default function BiodiversityDashboard() {
 
           {/* Main Content */}
           {selectedSpecies ? (
-            /* Species Analysis View */
+            /* Species Analysis View with GBIF Density Map */
             <div className="space-y-8">
-              {/* Species Information Header */}
+              {/* Species Information Header with Vernacular Names */}
               <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -258,15 +262,9 @@ export default function BiodiversityDashboard() {
                       </div>
                       <div>
                         <CardTitle className="text-3xl text-gray-900 mb-2">{selectedSpecies.scientificName}</CardTitle>
-                        {selectedSpecies.canonicalName &&
-                          selectedSpecies.canonicalName !== selectedSpecies.scientificName && (
-                            <CardDescription className="text-lg text-gray-600 font-mono mb-2">
-                              {selectedSpecies.canonicalName}
-                            </CardDescription>
-                          )}
                         {selectedSpecies.vernacularName && (
-                          <CardDescription className="text-xl text-gray-700 font-medium mb-3">
-                            {selectedSpecies.vernacularName}
+                          <CardDescription className="text-xl text-green-700 font-medium mb-3">
+                            🌍 {selectedSpecies.vernacularName}
                           </CardDescription>
                         )}
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -279,9 +277,7 @@ export default function BiodiversityDashboard() {
                           {selectedSpecies.family && <Badge variant="outline">{selectedSpecies.family}</Badge>}
                           {selectedSpecies.rank && <Badge variant="outline">{selectedSpecies.rank}</Badge>}
                           {selectedSpecies.taxonomicStatus && (
-                            <Badge variant={selectedSpecies.taxonomicStatus === "ACCEPTED" ? "default" : "secondary"}>
-                              {selectedSpecies.taxonomicStatus}
-                            </Badge>
+                            <Badge variant="secondary">{selectedSpecies.taxonomicStatus}</Badge>
                           )}
                         </div>
                         {/* Show coordinate preview */}
@@ -365,44 +361,56 @@ export default function BiodiversityDashboard() {
                 </Card>
               </div>
 
-              {/* Main Visualizations */}
+              {/* Main Visualizations with GBIF Density Map */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                {/* Geographic Distribution Map */}
-                <Card className="xl:col-span-1">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <MapPin className="h-6 w-6 text-green-600" />
-                      Geographic Distribution
-                    </CardTitle>
-                    <CardDescription className="text-base">
-                      GBIF observation locations across Poland
-                      {observations && observations.total > 0 && (
-                        <span className="font-medium text-green-600 ml-2">• {observations.total} locations mapped</span>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {observationsLoading ? (
-                      <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-                        <div className="text-center space-y-3">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                          <div className="text-lg font-medium text-gray-600">Loading distribution map...</div>
-                          <div className="text-sm text-gray-500">Fetching observation coordinates from GBIF</div>
+                {/* GBIF Density Map */}
+                <div className="xl:col-span-1">
+                  {observationsLoading ? (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Layers className="h-6 w-6 text-blue-600" />
+                          GBIF Density Map
+                        </CardTitle>
+                        <CardDescription>Loading density map...</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
+                          <div className="text-center space-y-3">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                            <div className="text-lg font-medium text-gray-600">Loading density map...</div>
+                            <div className="text-sm text-gray-500">Fetching GBIF map tiles and observations</div>
+                          </div>
                         </div>
-                      </div>
-                    ) : observationsError ? (
-                      <div className="h-96 bg-red-50 rounded-lg flex items-center justify-center">
-                        <div className="text-center space-y-3">
-                          <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
-                          <div className="text-lg font-medium text-red-700">Failed to load observations</div>
-                          <div className="text-sm text-red-600">{observationsError}</div>
+                      </CardContent>
+                    </Card>
+                  ) : observationsError ? (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <AlertCircle className="h-6 w-6 text-red-600" />
+                          Map Error
+                        </CardTitle>
+                        <CardDescription>Failed to load observations</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-96 bg-red-50 rounded-lg flex items-center justify-center">
+                          <div className="text-center space-y-3">
+                            <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+                            <div className="text-lg font-medium text-red-700">Failed to load observations</div>
+                            <div className="text-sm text-red-600">{observationsError}</div>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <SpeciesMap observations={observations?.observations || []} />
-                    )}
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <SpeciesDensityMap
+                      speciesId={selectedSpecies.id}
+                      observations={observations?.observations || []}
+                      speciesName={selectedSpecies.vernacularName || selectedSpecies.scientificName}
+                    />
+                  )}
+                </div>
 
                 {/* Observation Timeline */}
                 <Card className="xl:col-span-1">
@@ -451,8 +459,8 @@ export default function BiodiversityDashboard() {
                   </div>
                   <CardTitle className="text-4xl mb-4">Explore Poland's Biodiversity</CardTitle>
                   <CardDescription className="text-xl text-green-100 max-w-2xl mx-auto">
-                    Real-time species observations from the Global Biodiversity Information Facility (GBIF). Search for
-                    any species to see where and when it has been observed across Poland.
+                    Real-time species observations from GBIF with vernacular names and density maps. Search for any
+                    species to see where and when it has been observed across Poland.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -519,11 +527,11 @@ export default function BiodiversityDashboard() {
                 <Card className="hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Data Source</CardTitle>
-                    <Globe className="h-4 w-4 text-orange-600" />
+                    <Layers className="h-4 w-4 text-orange-600" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-lg font-bold text-orange-600">GBIF</div>
-                    <p className="text-xs text-muted-foreground mt-1">Global Biodiversity Information Facility</p>
+                    <p className="text-xs text-muted-foreground mt-1">With vernacular names & density maps</p>
                   </CardContent>
                 </Card>
               </div>
@@ -533,24 +541,25 @@ export default function BiodiversityDashboard() {
                 <CardHeader>
                   <CardTitle className="text-2xl">Featured Polish Species</CardTitle>
                   <CardDescription className="text-base">
-                    Click on any species below to explore its real-time GBIF distribution and observation timeline
+                    Click on any species below to explore its real-time GBIF distribution with vernacular names and
+                    density visualization
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
                       {
-                        name: "Pinus sylvestris",
-                        common: "Scots Pine",
-                        icon: "🌲",
-                        description: "Poland's national tree, widespread in forests",
-                        kingdom: "Plantae",
-                      },
-                      {
                         name: "Quercus robur",
                         common: "English Oak",
                         icon: "🌳",
                         description: "Majestic oak tree, symbol of strength",
+                        kingdom: "Plantae",
+                      },
+                      {
+                        name: "Pinus sylvestris",
+                        common: "Scots Pine",
+                        icon: "🌲",
+                        description: "Poland's national tree, widespread in forests",
                         kingdom: "Plantae",
                       },
                       {
@@ -589,103 +598,55 @@ export default function BiodiversityDashboard() {
                       >
                         <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{species.icon}</div>
                         <h3 className="font-bold text-lg text-gray-900 mb-1">{species.name}</h3>
-                        <p className="font-medium text-green-600 mb-2">{species.common}</p>
+                        <p className="font-medium text-green-600 mb-2">🌍 {species.common}</p>
                         <p className="text-sm text-gray-600 mb-3">{species.description}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {species.kingdom}
-                        </Badge>
+                        <div className="flex gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {species.kingdom}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            <Layers className="h-3 w-3 mr-1" />
+                            Density Map
+                          </Badge>
+                        </div>
                       </button>
                     ))}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Biodiversity by Kingdom */}
-              {stats?.topKingdoms && !statsError && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-2xl">Biodiversity Overview</CardTitle>
-                    <CardDescription className="text-base">
-                      Live distribution of recorded species across major taxonomic kingdoms in Poland (from GBIF)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {stats.topKingdoms.map((kingdom, index) => (
-                        <div key={kingdom.name} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                                index === 0
-                                  ? "bg-green-100 text-green-600"
-                                  : index === 1
-                                    ? "bg-blue-100 text-blue-600"
-                                    : index === 2
-                                      ? "bg-purple-100 text-purple-600"
-                                      : "bg-orange-100 text-orange-600"
-                              }`}
-                            >
-                              {index === 0 ? "🌱" : index === 1 ? "🦋" : index === 2 ? "🍄" : "🦠"}
-                            </div>
-                            <div>
-                              <Badge variant="outline" className="mb-2">
-                                {kingdom.name}
-                              </Badge>
-                              <p className="text-sm text-gray-600">
-                                {kingdom.name === "Plantae"
-                                  ? "Plants, trees, and vegetation"
-                                  : kingdom.name === "Animalia"
-                                    ? "Animals, birds, and wildlife"
-                                    : kingdom.name === "Fungi"
-                                      ? "Mushrooms and fungi"
-                                      : "Microorganisms and bacteria"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-gray-900">{kingdom.count.toLocaleString()}</div>
-                            <div className="text-sm text-gray-500">species</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* How to Use */}
               <Card className="bg-blue-50 border-blue-200">
                 <CardHeader>
-                  <CardTitle className="text-2xl text-blue-900">How to Use This Dashboard</CardTitle>
+                  <CardTitle className="text-2xl text-blue-900">Enhanced Features</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center">
                       <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Search className="h-8 w-8 text-white" />
+                        <Globe className="h-8 w-8 text-white" />
                       </div>
-                      <h3 className="font-bold text-lg text-blue-900 mb-2">1. Search Species</h3>
+                      <h3 className="font-bold text-lg text-blue-900 mb-2">1. Vernacular Names</h3>
                       <p className="text-blue-700">
-                        Search by scientific name (e.g., "Pinus sylvestris") or common name (e.g., "Pine") to find real
-                        GBIF data with coordinates
+                        Search results now include common names in multiple languages from GBIF's vernacular names API
                       </p>
                     </div>
                     <div className="text-center">
                       <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <MapPin className="h-8 w-8 text-white" />
+                        <Layers className="h-8 w-8 text-white" />
                       </div>
-                      <h3 className="font-bold text-lg text-blue-900 mb-2">2. View Distribution</h3>
+                      <h3 className="font-bold text-lg text-blue-900 mb-2">2. Density Maps</h3>
                       <p className="text-blue-700">
-                        See live GBIF observation locations across Poland with precise latitude/longitude coordinates
+                        GBIF density map tiles provide visual representation of observation density across Poland
                       </p>
                     </div>
                     <div className="text-center">
                       <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <BarChart3 className="h-8 w-8 text-white" />
+                        <MapPin className="h-8 w-8 text-white" />
                       </div>
-                      <h3 className="font-bold text-lg text-blue-900 mb-2">3. Analyze Timeline</h3>
+                      <h3 className="font-bold text-lg text-blue-900 mb-2">3. Enhanced Coordinates</h3>
                       <p className="text-blue-700">
-                        Explore real observation dates from GBIF to understand seasonal patterns and research activity
+                        Precise coordinate validation and sample location preview for better geographic understanding
                       </p>
                     </div>
                   </div>

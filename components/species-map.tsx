@@ -36,7 +36,7 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
     // Clear canvas
     ctx.clearRect(0, 0, rect.width, rect.height)
 
-    // Poland geographic bounds (precise)
+    // Poland geographic bounds (matching backend)
     const bounds = {
       north: 54.8389,
       south: 49.002,
@@ -90,7 +90,7 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
 
     ctx.setLineDash([]) // Reset line dash
 
-    // Add coordinate labels
+    // Add coordinate labels with better styling
     ctx.fillStyle = "#475569"
     ctx.font = "11px system-ui, -apple-system, sans-serif"
 
@@ -136,7 +136,7 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
         pointDensity.set(key, (pointDensity.get(key) || 0) + 1)
       })
 
-      // Draw observation points with density-based sizing and quality indicators
+      // Draw observation points with density-based sizing
       validObservations.forEach((obs, index) => {
         const x = mapPadding + ((obs.decimalLongitude - bounds.west) / (bounds.east - bounds.west)) * mapWidth
         const y = mapPadding + ((bounds.north - obs.decimalLatitude) / (bounds.north - bounds.south)) * mapHeight
@@ -145,38 +145,24 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
         const density = pointDensity.get(key) || 1
         const baseRadius = Math.min(4 + Math.log(density) * 2, 12)
 
-        // Color based on coordinate uncertainty (data quality)
-        let pointColor = "#10b981" // Default green
-        const strokeColor = "#ffffff"
-
-        if (obs.coordinateUncertaintyInMeters) {
-          if (obs.coordinateUncertaintyInMeters > 1000) {
-            pointColor = "#f59e0b" // Orange for uncertain coordinates
-          } else if (obs.coordinateUncertaintyInMeters > 100) {
-            pointColor = "#eab308" // Yellow for moderate uncertainty
-          }
-        }
-
         // Draw glow effect
         const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius + 6)
-        glowGradient.addColorStop(0, `${pointColor}66`) // 40% opacity
-        glowGradient.addColorStop(1, `${pointColor}00`) // 0% opacity
+        glowGradient.addColorStop(0, "rgba(16, 185, 129, 0.4)")
+        glowGradient.addColorStop(1, "rgba(16, 185, 129, 0)")
         ctx.fillStyle = glowGradient
         ctx.beginPath()
         ctx.arc(x, y, baseRadius + 6, 0, 2 * Math.PI)
         ctx.fill()
 
-        // Draw main point
+        // Draw main point with density-based color intensity
         const alpha = Math.min(0.7 + density * 0.1, 1)
-        ctx.fillStyle = pointColor
-        ctx.globalAlpha = alpha
+        ctx.fillStyle = `rgba(16, 185, 129, ${alpha})`
         ctx.beginPath()
         ctx.arc(x, y, baseRadius, 0, 2 * Math.PI)
         ctx.fill()
-        ctx.globalAlpha = 1
 
         // Add white border for better visibility
-        ctx.strokeStyle = strokeColor
+        ctx.strokeStyle = "#ffffff"
         ctx.lineWidth = 2
         ctx.stroke()
 
@@ -189,30 +175,19 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
         }
       })
 
-      // Add observation count and quality info
+      // Add observation count and density info
       ctx.fillStyle = "#059669"
       ctx.font = "bold 14px system-ui, -apple-system, sans-serif"
       ctx.textAlign = "left"
       ctx.fillText(`${validObservations.length} observations`, 15, 25)
 
-      // Show data quality summary
-      const highQuality = validObservations.filter(
-        (obs) => !obs.coordinateUncertaintyInMeters || obs.coordinateUncertaintyInMeters <= 100,
-      ).length
-
-      if (highQuality > 0) {
-        ctx.fillStyle = "#059669"
-        ctx.font = "12px system-ui, -apple-system, sans-serif"
-        ctx.fillText(`${highQuality} high precision`, 15, 45)
-      }
-
       if (validObservations.length !== observations.length) {
         ctx.fillStyle = "#dc2626"
         ctx.font = "12px system-ui, -apple-system, sans-serif"
-        ctx.fillText(`${observations.length - validObservations.length} outside Poland bounds`, 15, 65)
+        ctx.fillText(`${observations.length - validObservations.length} outside Poland bounds`, 15, 45)
       }
     } else {
-      // Empty state
+      // Empty state with better design
       ctx.fillStyle = "#9ca3af"
       ctx.font = "18px system-ui, -apple-system, sans-serif"
       ctx.textAlign = "center"
@@ -306,16 +281,13 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
         <div
           className="absolute z-20 bg-white p-4 rounded-lg shadow-xl border-2 border-green-200 pointer-events-none max-w-sm"
           style={{
-            left: Math.min(hoveredPoint.x + 15, mapDimensions.width - 280),
-            top: Math.max(hoveredPoint.y - 120, 10),
+            left: Math.min(hoveredPoint.x + 15, mapDimensions.width - 250),
+            top: Math.max(hoveredPoint.y - 100, 10),
           }}
         >
           <div className="space-y-2">
             <div className="font-bold text-gray-900 text-sm border-b border-gray-200 pb-2">
-              📍{" "}
-              {hoveredPoint.observation.locality ||
-                `${hoveredPoint.observation.municipality || ""} ${hoveredPoint.observation.stateProvince || ""}`.trim() ||
-                "Unknown location"}
+              📍 {hoveredPoint.observation.locality || "Unknown location"}
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
@@ -326,20 +298,12 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
               <div>
                 <span className="text-gray-500">Date:</span>
                 <div className="font-medium text-gray-800">
-                  {hoveredPoint.observation.eventDate !== "Unknown"
-                    ? new Date(hoveredPoint.observation.eventDate).toLocaleDateString()
-                    : "Unknown"}
+                  {new Date(hoveredPoint.observation.eventDate).toLocaleDateString()}
                 </div>
               </div>
             </div>
-            {hoveredPoint.observation.coordinateUncertaintyInMeters && (
-              <div className="text-xs text-gray-600 border-t border-gray-100 pt-2">
-                <span className="text-gray-500">Precision:</span> ±
-                {hoveredPoint.observation.coordinateUncertaintyInMeters}m
-              </div>
-            )}
             {hoveredPoint.observation.recordedBy && (
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-gray-600 border-t border-gray-100 pt-2">
                 <span className="text-gray-500">Recorded by:</span> {hoveredPoint.observation.recordedBy}
               </div>
             )}
@@ -357,18 +321,10 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
-            <span>High Precision</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <div className="w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow-sm"></div>
-            <span>Medium Precision</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <div className="w-4 h-4 bg-orange-500 rounded-full border-2 border-white shadow-sm"></div>
-            <span>Low Precision</span>
+            <span>GBIF Observation</span>
           </div>
           {observations && observations.length > 0 && (
-            <div className="text-xs text-gray-600 pt-1 border-t border-gray-200">
+            <div className="text-xs text-gray-600">
               {observations.length} record{observations.length !== 1 ? "s" : ""} • Larger dots = multiple observations
             </div>
           )}

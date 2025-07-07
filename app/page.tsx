@@ -132,7 +132,7 @@ export default function BiodiversityDashboard() {
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
                   type="text"
-                  placeholder="Search species by scientific name (e.g., Quercus robur) or common name (e.g., Oak)..."
+                  placeholder="Search species by scientific name (e.g., Pinus sylvestris) or common name (e.g., Pine)..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="pl-12 pr-4 py-4 text-lg border-2 border-gray-200 focus:border-green-500 rounded-xl shadow-sm"
@@ -191,6 +191,9 @@ export default function BiodiversityDashboard() {
                                   </div>
                                   <div>
                                     <h3 className="font-semibold text-gray-900 text-lg">{species.scientificName}</h3>
+                                    {species.canonicalName && species.canonicalName !== species.scientificName && (
+                                      <p className="text-sm text-gray-500 font-mono">{species.canonicalName}</p>
+                                    )}
                                     {species.vernacularName && (
                                       <p className="text-sm text-gray-600 font-medium">{species.vernacularName}</p>
                                     )}
@@ -203,8 +206,13 @@ export default function BiodiversityDashboard() {
                                           {species.family}
                                         </Badge>
                                       )}
-                                      {species.observationCount !== undefined && species.observationCount > 0 && (
+                                      {species.rank && (
                                         <Badge variant="secondary" className="text-xs">
+                                          {species.rank}
+                                        </Badge>
+                                      )}
+                                      {species.observationCount !== undefined && species.observationCount > 0 && (
+                                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
                                           {species.observationCount.toLocaleString()} observations
                                         </Badge>
                                       )}
@@ -250,6 +258,12 @@ export default function BiodiversityDashboard() {
                       </div>
                       <div>
                         <CardTitle className="text-3xl text-gray-900 mb-2">{selectedSpecies.scientificName}</CardTitle>
+                        {selectedSpecies.canonicalName &&
+                          selectedSpecies.canonicalName !== selectedSpecies.scientificName && (
+                            <CardDescription className="text-lg text-gray-600 font-mono mb-2">
+                              {selectedSpecies.canonicalName}
+                            </CardDescription>
+                          )}
                         {selectedSpecies.vernacularName && (
                           <CardDescription className="text-xl text-gray-700 font-medium mb-3">
                             {selectedSpecies.vernacularName}
@@ -263,6 +277,12 @@ export default function BiodiversityDashboard() {
                           {selectedSpecies.class && <Badge variant="secondary">{selectedSpecies.class}</Badge>}
                           {selectedSpecies.order && <Badge variant="outline">{selectedSpecies.order}</Badge>}
                           {selectedSpecies.family && <Badge variant="outline">{selectedSpecies.family}</Badge>}
+                          {selectedSpecies.rank && <Badge variant="outline">{selectedSpecies.rank}</Badge>}
+                          {selectedSpecies.taxonomicStatus && (
+                            <Badge variant={selectedSpecies.taxonomicStatus === "ACCEPTED" ? "default" : "secondary"}>
+                              {selectedSpecies.taxonomicStatus}
+                            </Badge>
+                          )}
                         </div>
                         {/* Show coordinate preview */}
                         {selectedSpecies.sampleLatitude && selectedSpecies.sampleLongitude && (
@@ -355,7 +375,7 @@ export default function BiodiversityDashboard() {
                       Geographic Distribution
                     </CardTitle>
                     <CardDescription className="text-base">
-                      Observation locations across Poland
+                      GBIF observation locations across Poland
                       {observations && observations.total > 0 && (
                         <span className="font-medium text-green-600 ml-2">• {observations.total} locations mapped</span>
                       )}
@@ -520,17 +540,17 @@ export default function BiodiversityDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
                       {
-                        name: "Quercus robur",
-                        common: "English Oak",
-                        icon: "🌳",
-                        description: "Majestic oak tree, symbol of strength",
-                        kingdom: "Plantae",
-                      },
-                      {
                         name: "Pinus sylvestris",
                         common: "Scots Pine",
                         icon: "🌲",
                         description: "Poland's national tree, widespread in forests",
+                        kingdom: "Plantae",
+                      },
+                      {
+                        name: "Quercus robur",
+                        common: "English Oak",
+                        icon: "🌳",
+                        description: "Majestic oak tree, symbol of strength",
                         kingdom: "Plantae",
                       },
                       {
@@ -646,8 +666,8 @@ export default function BiodiversityDashboard() {
                       </div>
                       <h3 className="font-bold text-lg text-blue-900 mb-2">1. Search Species</h3>
                       <p className="text-blue-700">
-                        Search by scientific name (e.g., "Quercus robur") or common name (e.g., "Oak") to find real GBIF
-                        data with coordinates
+                        Search by scientific name (e.g., "Pinus sylvestris") or common name (e.g., "Pine") to find real
+                        GBIF data with coordinates
                       </p>
                     </div>
                     <div className="text-center">

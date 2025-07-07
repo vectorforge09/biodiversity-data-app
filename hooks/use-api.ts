@@ -32,7 +32,7 @@ export function useApi<T>(apiCall: () => Promise<T>, dependencies: any[] = []) {
   return { data, loading, error, refetch: fetchData }
 }
 
-// Hook for species search with debouncing and vernacular names
+// Hook for species search with debouncing
 export function useSpeciesSearch(query: string, limit = 10) {
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
@@ -56,17 +56,6 @@ export function useSpeciesObservations(speciesId: string | null, limit = 300) {
         ? api.getObservations(speciesId, limit)
         : Promise.resolve({ observations: [], total: 0, queryTimeMs: 0 }),
     [speciesId, limit],
-  )
-}
-
-// Hook for GBIF density map tiles
-export function useSpeciesMapTiles(speciesId: string | null) {
-  return useApi(
-    () =>
-      speciesId
-        ? api.getMapTiles(speciesId)
-        : Promise.resolve({ speciesKey: "", densityMapUrl: "", tileTemplate: "", attribution: "" }),
-    [speciesId],
   )
 }
 

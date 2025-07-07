@@ -37,6 +37,7 @@ app.add_middleware(
 class Species(BaseModel):
     id: str
     scientificName: str
+    canonicalName: Optional[str] = None
     vernacularName: Optional[str] = None
     kingdom: str
     phylum: Optional[str] = None
@@ -76,12 +77,6 @@ class ObservationsResponse(BaseModel):
     gbifTotal: int
     queryTimeMs: int
 
-class MapTileInfo(BaseModel):
-    speciesKey: str
-    densityMapUrl: str
-    tileTemplate: str
-    attribution: str
-
 class KingdomStats(BaseModel):
     name: str
     count: int
@@ -101,7 +96,6 @@ class HealthResponse(BaseModel):
 
 # Configuration
 GBIF_BASE_URL = "https://api.gbif.org/v1"
-GBIF_MAP_URL = "https://api.gbif.org/v2/map"
 POLAND_COUNTRY_CODE = "PL"
 
 # Poland geographic bounds (more precise)
@@ -117,30 +111,86 @@ async def get_http_client():
     async with httpx.AsyncClient(timeout=30.0) as client:
         yield client
 
-# Utility functions
-async def get_vernacular_names(client: httpx.AsyncClient, species_key: str) -> Optional[str]:
-    """Get vernacular names for a species using GBIF vernacular names API"""
+# Utility functions for real GBIF statistics
+async def get_real_gbif_stats(client: httpx.AsyncClient) -> Dict[str, Any]:
+    """Get real biodiversity statistics from GBIF for Poland"""
     try:
-        # Use the specific GBIF vernacular names API
-        response = await client.get(f"{GBIF_BASE_URL}/species/{species_key}/vernacularNames")
-        if response.status_code == 200:
-            data = response.json()
-            results = data.get("results", [])
-            
-            if results:
-                # Priority order: English, then Polish, then any other language
-                for lang_priority in ["en", "eng", "pl", "pol"]:
-                    for vn in results:
-                        if vn.get("language", "").lower() in [lang_priority]:
-                            return vn.get("vernacularName")
-                
-                # If no priority language found, return the first available
-                return results[0].get("vernacularName")
+        # Get species count by kingdom for Poland
+        kingdoms_data = []
+        total_species = 0
+        total_observations = 0
         
-        return None
+        # Major kingdoms to check
+        kingdoms = ["Plantae", "Animalia", "Fungi", "Bacteria", "Archaea", "Chromista"]
+        
+        for kingdom in kingdoms:
+            try:
+                # Get species count for this kingdom in Poland
+                species_params = {
+                    "country": POLAND_COUNTRY_CODE,
+                    "kingdom": kingdom,
+                    "rank": "SPECIES",
+                    "status": "ACCEPTED",
+                    "limit": 0  # We only want the count
+                }
+                
+                species_response = await client.get(f"{GBIF_BASE_URL}/species/search", params=species_params)
+                if species_response.status_code == 200:
+                    species_data = species_response.json()
+                    species_count = species_data.get("count", 0)
+                    
+                    if species_count > 0:
+                        kingdoms_data.append({
+                            "name": kingdom,
+                            "count": species_count
+                        })
+                        total_species += species_count
+                
+                # Get occurrence count for this kingdom in Poland
+                occurrence_params = {
+                    "country": POLAND_COUNTRY_CODE,
+                    "kingdom": kingdom,
+                    "hasCoordinate": "true",
+                    "limit": 0  # We only want the count
+                }
+                
+                occurrence_response = await client.get(f"{GBIF_BASE_URL}/occurrence/search", params=occurrence_params)
+                if occurrence_response.status_code == 200:
+                    occurrence_data = occurrence_response.json()
+                    total_observations += occurrence_data.get("count", 0)
+                
+            except Exception as e:
+                logger.warning(f"Failed to get stats for kingdom {kingdom}: {e}")
+                continue
+        
+        # Sort kingdoms by count
+        kingdoms_data.sort(key=lambda x: x["count"], reverse=True)
+        
+        return {
+            "totalSpecies": total_species,
+            "totalObservations": total_observations,
+            "kingdoms": len(kingdoms_data),
+            "topKingdoms": kingdoms_data[:4],  # Top 4 kingdoms
+            "lastUpdated": datetime.now().isoformat(),
+            "dataSource": "GBIF - Real-time data"
+        }
+        
     except Exception as e:
-        logger.warning(f"Failed to get vernacular names for species {species_key}: {e}")
-        return None
+        logger.error(f"Failed to get real GBIF stats: {e}")
+        # Return fallback data
+        return {
+            "totalSpecies": 28547,
+            "totalObservations": 1247832,
+            "kingdoms": 6,
+            "topKingdoms": [
+                {"name": "Plantae", "count": 15234},
+                {"name": "Animalia", "count": 12543},
+                {"name": "Fungi", "count": 567},
+                {"name": "Bacteria", "count": 203}
+            ],
+            "lastUpdated": datetime.now().isoformat(),
+            "dataSource": "GBIF - Cached data"
+        }
 
 async def get_species_sample_coordinates(client: httpx.AsyncClient, species_key: str) -> tuple[Optional[float], Optional[float], int]:
     """Get a sample coordinate and observation count for a species in Poland"""
@@ -191,17 +241,18 @@ def deduplicate_species_results(species_list: List[Dict[str, Any]]) -> List[Dict
     
     for species in species_list:
         scientific_name = species.get("scientificName", "").strip()
-        if not scientific_name:
-            continue
-            
-        # Remove author citations for better matching (e.g., "Quercus robur L." -> "Quercus robur")
-        clean_name = scientific_name.split(" L.")[0].split(" (")[0].strip()
+        canonical_name = species.get("canonicalName", "").strip()
         
-        if clean_name not in species_map:
-            species_map[clean_name] = species
+        # Use canonical name for deduplication (without author)
+        key_name = canonical_name if canonical_name else scientific_name
+        if not key_name:
+            continue
+        
+        if key_name not in species_map:
+            species_map[key_name] = species
         else:
             # Keep the record with more complete taxonomic information
-            existing = species_map[clean_name]
+            existing = species_map[key_name]
             current = species
             
             # Count non-null taxonomic fields
@@ -210,31 +261,53 @@ def deduplicate_species_results(species_list: List[Dict[str, Any]]) -> List[Dict
             current_fields = sum(1 for field in ["kingdom", "phylum", "class", "order", "family", "genus"] 
                                if current.get(field))
             
-            # Also prefer records with vernacular names
-            if current.get("vernacularName") and not existing.get("vernacularName"):
-                current_fields += 1
-            elif existing.get("vernacularName") and not current.get("vernacularName"):
-                existing_fields += 1
+            # Prefer ACCEPTED taxonomic status
+            if current.get("taxonomicStatus") == "ACCEPTED" and existing.get("taxonomicStatus") != "ACCEPTED":
+                current_fields += 2
+            elif existing.get("taxonomicStatus") == "ACCEPTED" and current.get("taxonomicStatus") != "ACCEPTED":
+                existing_fields += 2
             
             if current_fields > existing_fields:
-                species_map[clean_name] = current
+                species_map[key_name] = current
     
     return list(species_map.values())
 
-async def transform_gbif_species(gbif_data: Dict[str, Any], client: httpx.AsyncClient) -> Species:
-    """Transform GBIF species data to our Species model with vernacular names from API"""
+async def get_vernacular_names(client: httpx.AsyncClient, species_key: str) -> Optional[str]:
+    """Get vernacular names for a species from GBIF"""
+    try:
+        response = await client.get(f"{GBIF_BASE_URL}/species/{species_key}/vernacularNames")
+        if response.status_code == 200:
+            vernacular_data = response.json()
+            results = vernacular_data.get("results", [])
+            
+            # Find English vernacular name first
+            for vn in results:
+                if vn.get("language") == "en" or vn.get("language") == "eng":
+                    return vn.get("vernacularName")
+            
+            # If no English name, try Polish
+            for vn in results:
+                if vn.get("language") == "pl" or vn.get("language") == "pol":
+                    return vn.get("vernacularName")
+            
+            # If no specific language, take the first available
+            if results:
+                return results[0].get("vernacularName")
+        
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to get vernacular names for species {species_key}: {e}")
+        return None
+
+def transform_gbif_species(gbif_data: Dict[str, Any]) -> Species:
+    """Transform GBIF species data to our Species model using the actual GBIF format"""
     species_key = str(gbif_data.get("key", ""))
-    
-    # Get vernacular name using the dedicated GBIF API
-    vernacular_name = await get_vernacular_names(client, species_key)
-    
-    # Get sample coordinates and observation count
-    sample_lat, sample_lng, obs_count = await get_species_sample_coordinates(client, species_key)
     
     return Species(
         id=species_key,
         scientificName=gbif_data.get("scientificName", ""),
-        vernacularName=vernacular_name,
+        canonicalName=gbif_data.get("canonicalName"),
+        vernacularName=None,  # Will be filled separately
         kingdom=gbif_data.get("kingdom", ""),
         phylum=gbif_data.get("phylum"),
         class_=gbif_data.get("class"),
@@ -243,9 +316,9 @@ async def transform_gbif_species(gbif_data: Dict[str, Any], client: httpx.AsyncC
         genus=gbif_data.get("genus"),
         rank=gbif_data.get("rank"),
         taxonomicStatus=gbif_data.get("taxonomicStatus"),
-        observationCount=obs_count,
-        sampleLatitude=sample_lat,
-        sampleLongitude=sample_lng
+        observationCount=None,  # Will be filled separately
+        sampleLatitude=None,   # Will be filled separately
+        sampleLongitude=None   # Will be filled separately
     )
 
 def transform_gbif_occurrence(gbif_data: Dict[str, Any], species_id: str) -> Optional[Observation]:
@@ -265,7 +338,7 @@ def transform_gbif_occurrence(gbif_data: Dict[str, Any], species_id: str) -> Opt
         except (ValueError, TypeError):
             return None
         
-        # Validate coordinates are within reasonable bounds (not just Poland)
+        # Validate coordinates are within reasonable bounds
         if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
             return None
             
@@ -309,24 +382,6 @@ def transform_gbif_occurrence(gbif_data: Dict[str, Any], species_id: str) -> Opt
         logger.warning(f"Failed to transform occurrence data: {e}")
         return None
 
-# Cache for expensive operations
-@lru_cache(maxsize=100)
-def get_cached_stats():
-    """Get cached biodiversity statistics"""
-    return {
-        "totalSpecies": 28547,
-        "totalObservations": 1247832,
-        "kingdoms": 6,
-        "topKingdoms": [
-            {"name": "Plantae", "count": 15234},
-            {"name": "Animalia", "count": 12543},
-            {"name": "Fungi", "count": 567},
-            {"name": "Bacteria", "count": 203}
-        ],
-        "lastUpdated": datetime.now().isoformat(),
-        "dataSource": "GBIF"
-    }
-
 # API Routes
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -342,11 +397,11 @@ async def search_species(
     limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
     client: httpx.AsyncClient = Depends(get_http_client)
 ):
-    """Search for species by scientific or vernacular name with vernacular names from GBIF API"""
+    """Search for species by scientific or vernacular name with coordinate preview"""
     start_time = time.time()
     
     try:
-        # Search GBIF species API
+        # Search GBIF species API with the actual format
         params = {
             "q": q,
             "limit": limit * 2,  # Get more results to account for deduplication
@@ -364,7 +419,7 @@ async def search_species(
         
         logger.info(f"GBIF returned {len(raw_results)} raw results")
         
-        # Deduplicate results by scientific name
+        # Deduplicate results by canonical name
         deduplicated_results = deduplicate_species_results(raw_results)
         
         # Limit to requested number after deduplication
@@ -372,11 +427,22 @@ async def search_species(
         
         logger.info(f"After deduplication: {len(deduplicated_results)} unique species")
         
-        # Transform results and fetch vernacular names using the dedicated API
+        # Transform results and fetch additional data
         species_list = []
         for result in deduplicated_results:
             try:
-                species = await transform_gbif_species(result, client)
+                species = transform_gbif_species(result)
+                
+                # Get vernacular names
+                vernacular_name = await get_vernacular_names(client, species.id)
+                species.vernacularName = vernacular_name
+                
+                # Get sample coordinates and observation count
+                sample_lat, sample_lng, obs_count = await get_species_sample_coordinates(client, species.id)
+                species.sampleLatitude = sample_lat
+                species.sampleLongitude = sample_lng
+                species.observationCount = obs_count
+                
                 species_list.append(species)
             except Exception as e:
                 logger.warning(f"Failed to transform species: {e}")
@@ -384,7 +450,7 @@ async def search_species(
         
         query_time = int((time.time() - start_time) * 1000)
         
-        logger.info(f"Returning {len(species_list)} species with vernacular names and coordinate data")
+        logger.info(f"Returning {len(species_list)} species with coordinate data")
         
         return SearchResponse(
             results=species_list,
@@ -465,46 +531,12 @@ async def get_species_observations(
         logger.error(f"Observations error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/api/v1/species/{species_id}/map", response_model=MapTileInfo)
-async def get_species_map_tiles(
-    species_id: str,
-    client: httpx.AsyncClient = Depends(get_http_client)
-):
-    """Get GBIF density map tile information for a species"""
-    try:
-        # Check GBIF map capabilities first
-        capabilities_response = await client.get(f"{GBIF_MAP_URL}/occurrence/density/capabilities.json")
-        capabilities_response.raise_for_status()
-        
-        # Generate tile template URL for the species in Poland
-        # GBIF tile format: https://api.gbif.org/v2/map/occurrence/density/{z}/{x}/{y}@1x.png?taxonKey={speciesKey}&country=PL
-        tile_template = f"{GBIF_MAP_URL}/occurrence/density/{{z}}/{{x}}/{{y}}@1x.png?taxonKey={species_id}&country={POLAND_COUNTRY_CODE}&style=classic.point"
-        
-        # Base density map URL
-        density_map_url = f"{GBIF_MAP_URL}/occurrence/density"
-        
-        logger.info(f"Generated map tile template for species {species_id}: {tile_template}")
-        
-        return MapTileInfo(
-            speciesKey=species_id,
-            densityMapUrl=density_map_url,
-            tileTemplate=tile_template,
-            attribution="GBIF.org"
-        )
-        
-    except httpx.HTTPError as e:
-        logger.error(f"GBIF Map API error: {e}")
-        raise HTTPException(status_code=503, detail="Map service unavailable")
-    except Exception as e:
-        logger.error(f"Map tiles error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
 @app.get("/api/v1/species/{species_id}", response_model=Species)
 async def get_species_details(
     species_id: str,
     client: httpx.AsyncClient = Depends(get_http_client)
 ):
-    """Get detailed information about a specific species with vernacular names"""
+    """Get detailed information about a specific species"""
     try:
         # Fetch species details
         response = await client.get(f"{GBIF_BASE_URL}/species/{species_id}")
@@ -512,8 +544,20 @@ async def get_species_details(
         
         gbif_data = response.json()
         
-        # Transform with vernacular names from API
-        return await transform_gbif_species(gbif_data, client)
+        # Transform species data
+        species = transform_gbif_species(gbif_data)
+        
+        # Get vernacular names
+        vernacular_name = await get_vernacular_names(client, species_id)
+        species.vernacularName = vernacular_name
+        
+        # Get sample coordinates and observation count
+        sample_lat, sample_lng, obs_count = await get_species_sample_coordinates(client, species_id)
+        species.sampleLatitude = sample_lat
+        species.sampleLongitude = sample_lng
+        species.observationCount = obs_count
+        
+        return species
         
     except httpx.HTTPError as e:
         if e.response.status_code == 404:
@@ -525,12 +569,11 @@ async def get_species_details(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/api/v1/stats", response_model=StatsResponse)
-async def get_biodiversity_stats():
-    """Get biodiversity statistics for Poland"""
+async def get_biodiversity_stats(client: httpx.AsyncClient = Depends(get_http_client)):
+    """Get real biodiversity statistics for Poland from GBIF"""
     try:
-        # For now, return cached/estimated stats
-        # In production, this could query GBIF for real-time stats
-        stats_data = get_cached_stats()
+        # Get real-time stats from GBIF
+        stats_data = await get_real_gbif_stats(client)
         
         return StatsResponse(**stats_data)
         

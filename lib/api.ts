@@ -74,7 +74,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
 // API functions for different endpoints
 export const api = {
-  // Search for species with vernacular names
+  // Search for species
   searchSpecies: async (query: string, limit = 10) => {
     if (!query || query.length < 2) {
       return { results: [], total: 0, queryTimeMs: 0 }
@@ -93,12 +93,7 @@ export const api = {
     return apiRequest(`/api/v1/species/${speciesId}/observations?limit=${limit}`)
   },
 
-  // Get GBIF density map tile information
-  getMapTiles: async (speciesId: string) => {
-    return apiRequest(`/api/v1/species/${speciesId}/map`)
-  },
-
-  // Get species details with vernacular names
+  // Get species details
   getSpeciesDetails: async (speciesId: string) => {
     return apiRequest(`/api/v1/species/${speciesId}`)
   },

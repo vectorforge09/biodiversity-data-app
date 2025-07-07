@@ -3,6 +3,7 @@
 export interface Species {
   id: string
   scientificName: string
+  canonicalName?: string
   vernacularName?: string
   kingdom: string
   phylum?: string
@@ -41,13 +42,6 @@ export interface ObservationsResponse {
   total: number
   gbifTotal: number
   queryTimeMs: number
-}
-
-export interface MapTileInfo {
-  speciesKey: string
-  densityMapUrl: string
-  tileTemplate: string
-  attribution: string
 }
 
 export interface KingdomStats {

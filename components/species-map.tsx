@@ -36,12 +36,12 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
     // Clear canvas
     ctx.clearRect(0, 0, rect.width, rect.height)
 
-    // Poland geographic bounds (more precise)
+    // Poland geographic bounds (matching backend)
     const bounds = {
-      north: 54.8389, // Northernmost point
-      south: 49.002, // Southernmost point
-      east: 24.1458, // Easternmost point
-      west: 14.1229, // Westernmost point
+      north: 54.8389,
+      south: 49.002,
+      east: 24.1458,
+      west: 14.1229,
     }
 
     // Map styling
@@ -321,7 +321,7 @@ export function SpeciesMap({ observations }: SpeciesMapProps) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
-            <span>Observation Location</span>
+            <span>GBIF Observation</span>
           </div>
           {observations && observations.length > 0 && (
             <div className="text-xs text-gray-600">
